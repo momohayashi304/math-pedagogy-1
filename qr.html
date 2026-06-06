@@ -67,6 +67,10 @@
             border-top: 6px solid #16a34a;
         }
 
+        .card.terrain {
+            border-top: 6px solid #b45309;
+        }
+
         .card h2 {
             margin: 0 0 4px 0;
             font-size: 1.3rem;
@@ -136,6 +140,14 @@
             background: #15803d;
         }
 
+        .card.terrain .open-btn {
+            background: #b45309;
+        }
+
+        .card.terrain .open-btn:hover {
+            background: #92400e;
+        }
+
         .note {
             max-width: 720px;
             margin: 28px auto 0 auto;
@@ -191,6 +203,14 @@
             <div class="url-display" id="url-sqrt"></div>
             <a class="open-btn" id="link-sqrt" href="sqrt.html">このページを開く</a>
         </div>
+
+        <div class="card terrain">
+            <h2>地形3Dマップ</h2>
+            <div class="grade">中学2年 一次関数 補助 ／ 富士山周辺の観測所</div>
+            <div class="qr-wrap" id="qr-terrain"></div>
+            <div class="url-display" id="url-terrain"></div>
+            <a class="open-btn" id="link-terrain" href="index.html">このページを開く</a>
+        </div>
     </div>
 
     <div class="note">
@@ -199,15 +219,18 @@
     </div>
 
     <script>
-        // 現在のページURLを基準に、lesson.html / sqrt.html の絶対URLを作る
+        // 現在のページURLを基準に、各ページの絶対URLを作る
         const base = window.location.href.replace(/\/[^\/]*$/, '/');
         const linearUrl = new URL('lesson.html', base).href;
         const sqrtUrl = new URL('sqrt.html', base).href;
+        const terrainUrl = new URL('index.html', base).href;
 
         document.getElementById('url-linear').textContent = linearUrl;
         document.getElementById('url-sqrt').textContent = sqrtUrl;
+        document.getElementById('url-terrain').textContent = terrainUrl;
         document.getElementById('link-linear').href = linearUrl;
         document.getElementById('link-sqrt').href = sqrtUrl;
+        document.getElementById('link-terrain').href = terrainUrl;
 
         // QR描画
         new QRCode(document.getElementById('qr-linear'), {
@@ -221,6 +244,15 @@
 
         new QRCode(document.getElementById('qr-sqrt'), {
             text: sqrtUrl,
+            width: 230,
+            height: 230,
+            colorDark: '#0f172a',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        new QRCode(document.getElementById('qr-terrain'), {
+            text: terrainUrl,
             width: 230,
             height: 230,
             colorDark: '#0f172a',
