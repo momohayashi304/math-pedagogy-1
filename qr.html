@@ -181,7 +181,7 @@
             <div class="grade">中学2年 ／ 1次関数とみなすこと</div>
             <div class="qr-wrap" id="qr-linear"></div>
             <div class="url-display" id="url-linear"></div>
-            <a class="open-btn" id="link-linear" href="linear.html">このページを開く</a>
+            <a class="open-btn" id="link-linear" href="lesson.html">このページを開く</a>
         </div>
 
         <div class="card sqrt">
@@ -199,9 +199,9 @@
     </div>
 
     <script>
-        // 現在のページURLを基準に、linear.html / sqrt.html の絶対URLを作る
+        // 現在のページURLを基準に、lesson.html / sqrt.html の絶対URLを作る
         const base = window.location.href.replace(/\/[^\/]*$/, '/');
-        const linearUrl = new URL('linear.html', base).href;
+        const linearUrl = new URL('lesson.html', base).href;
         const sqrtUrl = new URL('sqrt.html', base).href;
 
         document.getElementById('url-linear').textContent = linearUrl;
