@@ -156,12 +156,12 @@
         <div class="photo-slot">
           <div class="photo-cap">📷 お手本の写真をえらぶ（教科書 p.197 の3枚）</div>
           <div class="scen-row" id="scen-row">
-            <button class="scen" data-scen="a"><img src="画像/kadai_a.png" alt="写真ア"><span>ア</span></button>
-            <button class="scen" data-scen="i"><img src="画像/kadai_i.png" alt="写真イ"><span>イ</span></button>
-            <button class="scen active" data-scen="u"><img src="画像/kadai_u.png" alt="写真ウ"><span>ウ</span></button>
+            <button class="scen" data-scen="a"><img src="img/kadai_a.png" alt="写真ア"><span>ア</span></button>
+            <button class="scen" data-scen="i"><img src="img/kadai_i.png" alt="写真イ"><span>イ</span></button>
+            <button class="scen active" data-scen="u"><img src="img/kadai_u.png" alt="写真ウ"><span>ウ</span></button>
           </div>
           <div class="photo-box" id="photo-box">
-            <img id="ref-photo" src="画像/kadai_u.png" alt="お手本の写真"
+            <img id="ref-photo" src="img/kadai_u.png" alt="お手本の写真"
                  onerror="document.getElementById('photo-box').classList.add('noimg')">
             <span class="ph">教科書 p.197 の写真（<b>kadai_a/i/u.png</b>）を<br>このフォルダに置くと、ここに表示されます。</span>
           </div>
@@ -350,11 +350,11 @@ camWrap.appendChild(ghostImg);
 // 教科書 p.197 の3枚（ア・イ・ウ）＝3つの撮影位置の候補
 // 斜塔は +X（東）へかたむいているので、立つ位置によって見え方が変わる
 const SCEN={
-  a:{label:'ア', img:'画像/kadai_a.png', dir:'北から', see:'かたむきが 左 に見える',
+  a:{label:'ア', img:'img/kadai_a.png', dir:'北から', see:'かたむきが 左 に見える',
      T:{x:0,  z:14, h:2.4, az:180, pt:10}},   // 北に立ち、南を向く → かたむきは左
-  i:{label:'イ', img:'画像/kadai_i.png', dir:'西から', see:'ほぼ まっすぐ に見える',
+  i:{label:'イ', img:'img/kadai_i.png', dir:'西から', see:'ほぼ まっすぐ に見える',
      T:{x:-15, z:0, h:2.4, az:90,  pt:10}},    // 西に立ち、東を向く → かたむきは向こう向き
-  u:{label:'ウ', img:'画像/kadai_u.png', dir:'南から', see:'かたむきが 右 に見える',
+  u:{label:'ウ', img:'img/kadai_u.png', dir:'南から', see:'かたむきが 右 に見える',
      T:{x:0, z:-14, h:2.4, az:0,   pt:10}},    // 南に立ち、北を向く → かたむきは右
 };
 let curScen='u';
