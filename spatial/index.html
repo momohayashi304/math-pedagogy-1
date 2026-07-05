@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>どこから撮ったのかな？ ― 平面の決定条件シミュレータ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --blue:#2b7de9; --blue-d:#1c5fbf; --ink:#2c3e50; --line:#dfe4ea;
+    --orange:#e8833a; --green:#27ae60; --bg:#eef2f5;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink); margin:0; padding:14px;
+  }
+  .container{max-width:1080px; margin:0 auto; background:#fff; border-radius:12px;
+    box-shadow:0 6px 18px rgba(0,0,0,.09); padding:18px 20px 24px;}
+  .head{text-align:center; margin-bottom:6px;}
+  .head h1{font-size:1.35rem; color:var(--ink); margin:2px 0;}
+  .head .sub{font-size:.8rem; color:#7f8c8d;}
+  /* タブ */
+  .tabs{display:flex; justify-content:center; gap:6px; margin:12px 0 16px; border-bottom:2px solid var(--line);}
+  .tab-btn{background:none; border:none; padding:10px 18px; font-size:1rem; font-weight:bold;
+    color:#8a99a8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:.2s;}
+  .tab-btn:hover{color:var(--blue);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .desc{background:#f4f8fe; border-left:4px solid var(--blue); padding:10px 12px;
+    font-size:.9rem; line-height:1.6; margin-bottom:14px; border-radius:0 6px 6px 0;}
+  .desc b{color:var(--blue-d);}
+  .grid{display:flex; flex-wrap:wrap; gap:18px;}
+  .col-ctrl{flex:1; min-width:290px;}
+  .col-view{flex:1.5; min-width:340px; display:flex; flex-direction:column; gap:12px;}
+  /* スライダー */
+  .slider-row{margin-bottom:11px;}
+  .slider-row label{display:flex; justify-content:space-between; font-size:.9rem; font-weight:bold; margin-bottom:3px;}
+  .slider-row label .val{color:var(--blue-d); font-family:"Courier New",monospace;}
+  input[type=range]{width:100%; accent-color:var(--blue); height:22px;}
+  .hint{font-size:.78rem; color:#8a99a8; margin-top:-2px;}
+  /* ビュー枠 */
+  .view-box{position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#cfe3f2;}
+  .view-title{position:absolute; top:8px; left:10px; z-index:5; background:rgba(255,255,255,.85);
+    padding:2px 8px; border-radius:4px; font-size:.8rem; font-weight:bold; color:var(--ink);}
+  canvas{display:block; width:100%;}
+  #mapCanvas,#sideCanvas{width:100%; height:200px; background:#f7fafc;}
+  .twoview{display:flex; gap:12px;} .twoview .view-box{flex:1; min-width:0;}
+  /* マッチ度 */
+  .match-box{background:#f8fafb; border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-top:4px;}
+  .match-bar-bg{height:16px; background:#e6ebf0; border-radius:8px; overflow:hidden; margin:6px 0;}
+  .match-bar{height:100%; width:0%; background:var(--orange); transition:width .15s, background .2s;}
+  .match-label{font-size:.95rem; font-weight:bold; display:flex; justify-content:space-between;}
+  .msg{margin-top:8px; font-size:.9rem; min-height:1.3em; font-weight:bold;}
+  .btn-row{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  button.act{flex:1; min-width:110px; padding:9px; border:none; border-radius:7px; font-size:.9rem;
+    font-weight:bold; cursor:pointer; color:#fff; background:var(--blue); transition:.15s;}
+  button.act:hover{background:var(--blue-d);}
+  button.ghost{background:#95a5a6;}
+  button.ghost:hover{background:#7f8c8d;}
+  button.orbit{background:#8e44ad; width:100%; margin-top:12px;}
+  button.orbit:hover{background:#763a91;}
+  button.orbit.on{background:#c0392b;}
+  .photo-slot{margin-top:12px;}
+  .photo-cap{font-size:.8rem; font-weight:bold; color:var(--ink); margin-bottom:4px;}
+  .photo-box{border:2px dashed #cbd4dd; border-radius:8px; padding:6px; text-align:center; background:#fafbfc;}
+  .photo-box img{max-width:100%; max-height:150px; border-radius:5px; display:block; margin:0 auto;}
+  .photo-box .ph{display:none; font-size:.78rem; color:#8a99a8; line-height:1.5;}
+  .photo-box.noimg{padding:20px 6px;}
+  .photo-box.noimg img{display:none;}
+  .photo-box.noimg .ph{display:block;}
+  .scen-row{display:flex; gap:6px; margin-bottom:6px;}
+  .scen{flex:1; padding:4px 3px 3px; border:2px solid var(--line); background:#fff; border-radius:7px;
+    cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:2px; transition:.15s;}
+  .scen:hover{border-color:var(--blue);}
+  .scen img{width:100%; height:52px; object-fit:cover; object-position:top center; border-radius:4px; display:block;}
+  .scen span{font-size:.82rem; font-weight:bold; color:var(--ink);}
+  .scen.active{border-color:var(--orange); background:#fff5ec;}
+  .scen.active span{color:var(--orange);}
+  .scen-tip{margin-top:5px; font-size:.8rem; color:var(--ink); background:#fff5ec;
+    border-radius:6px; padding:5px 8px; text-align:center;}
+  .scen-tip b{color:var(--orange);}
+  /* Tab2 mode buttons */
+  .modebtns{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .modebtns button{flex:1; min-width:130px; padding:9px 6px; border:2px solid var(--line); background:#fff;
+    border-radius:8px; font-size:.85rem; font-weight:bold; color:var(--ink); cursor:pointer; transition:.15s;}
+  .modebtns button.active{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .verdict{padding:12px 14px; border-radius:8px; font-size:1rem; font-weight:bold; margin-top:10px; line-height:1.5;}
+  .verdict.no{background:#fdecea; color:#c0392b; border:1px solid #f5b7b1;}
+  .verdict.yes{background:#eafaf1; color:#1e8449; border:1px solid #a9dfbf;}
+  .small{font-size:.82rem; font-weight:normal; color:#5d6d7e;}
+  .footer{text-align:center; font-size:.72rem; color:#aab3bd; margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="head">
+    <h1>どこから撮ったのかな？</h1>
+    <div class="sub">中学1年 数学　東京書籍「新編 新しい数学1」第6章 空間図形 p.197 ／ 平面が1つに決まる条件</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="cam">① 撮影位置をさがそう</button>
+    <button class="tab-btn" data-tab="plane">② 平面が決まる条件</button>
+  </div>
+
+  <!-- ============ TAB 1 : カメラ ============ -->
+  <div class="panel active" id="panel-cam">
+    <div class="desc">
+      ピサの斜塔（＝斜めに立てた1本の<b>鉛筆＝直線</b>）を撮った写真が <b>3枚（ア・イ・ウ）</b> あります。<br>
+      右下で <b>お手本の写真をえらぶ</b>と、その写真を撮った<b>位置にカメラが自動で移動</b>し、そこからの見え方が分かる。
+      スライダーで<b>位置・高さ・向き・仰角</b>を動かせば、立つ位置で塔の見え方がどう変わるかを確かめられる。
+      地図の <b style="color:#8e44ad">ア・イ・ウ</b> が、それぞれの撮影位置だよ。
+    </div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="slider-row">
+          <label>東西の位置　X <span class="val" id="v-x">0.0</span></label>
+          <input type="range" id="s-x" min="-20" max="20" step="0.2" value="6">
+          <div class="hint">← 西　　　　　　　　　　　　東 →</div>
+        </div>
+        <div class="slider-row">
+          <label>南北の位置　Z <span class="val" id="v-z">-8.0</span></label>
+          <input type="range" id="s-z" min="-22" max="16" step="0.2" value="-8">
+          <div class="hint">↓ 手前（南）　　　　　　　奥（北）↑</div>
+        </div>
+        <div class="slider-row">
+          <label>カメラの高さ　H <span class="val" id="v-h">2.0</span></label>
+          <input type="range" id="s-h" min="0.5" max="9" step="0.1" value="2.0">
+        </div>
+        <div class="slider-row">
+          <label>向き（方位角）<span class="val" id="v-az">0°</span></label>
+          <input type="range" id="s-az" min="-180" max="180" step="1" value="20">
+          <div class="hint">← 左を向く　（斜塔のまわりを1周できる）　右を向く →</div>
+        </div>
+        <div class="slider-row">
+          <label>仰角（見上げ／見下ろし）<span class="val" id="v-pt">0°</span></label>
+          <input type="range" id="s-pt" min="-25" max="35" step="1" value="0">
+          <div class="hint">↓ 見下ろす　　　　　　　見上げる ↑</div>
+        </div>
+
+        <div class="match-box">
+          <div class="match-label"><span>お手本との一致度</span><span id="match-pct">0%</span></div>
+          <div class="match-bar-bg"><div class="match-bar" id="match-bar"></div></div>
+          <div class="msg" id="cam-msg"></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="act" id="btn-ghost">お手本の表示 ⟳</button>
+          <button class="act ghost" id="btn-answer">答えを見る</button>
+          <button class="act ghost" id="btn-reset">リセット</button>
+        </div>
+        <button class="act orbit" id="btn-orbit">▶ 斜塔のまわりをぐるっと1周（動画）</button>
+
+        <div class="photo-slot">
+          <div class="photo-cap">📷 お手本の写真をえらぶ（教科書 p.197 の3枚）</div>
+          <div class="scen-row" id="scen-row">
+            <button class="scen" data-scen="a"><img src="画像/kadai_a.png" alt="写真ア"><span>ア</span></button>
+            <button class="scen" data-scen="i"><img src="画像/kadai_i.png" alt="写真イ"><span>イ</span></button>
+            <button class="scen active" data-scen="u"><img src="画像/kadai_u.png" alt="写真ウ"><span>ウ</span></button>
+          </div>
+          <div class="photo-box" id="photo-box">
+            <img id="ref-photo" src="画像/kadai_u.png" alt="お手本の写真"
+                 onerror="document.getElementById('photo-box').classList.add('noimg')">
+            <span class="ph">教科書 p.197 の写真（<b>kadai_a/i/u.png</b>）を<br>このフォルダに置くと、ここに表示されます。</span>
+          </div>
+          <div class="scen-tip" id="scen-tip"></div>
+        </div>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">📷 カメラの見え方（写真）</div>
+          <div id="camView"></div>
+        </div>
+        <div class="twoview">
+          <div class="view-box">
+            <div class="view-title">🗺 真上から（ピサ 奇跡の広場）</div>
+            <canvas id="mapCanvas"></canvas>
+          </div>
+          <div class="view-box">
+            <div class="view-title">📐 真横から（高さ・仰角）</div>
+            <canvas id="sideCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 2 : 平面 ============ -->
+  <div class="panel" id="panel-plane">
+    <div class="desc">
+      空間の中で「平らな板（＝<b>平面</b>）」を、ぐらぐら動かないように<b>ただ1つに固定</b>するには、
+      点がいくつ必要だろう？　ボタンを切りかえて、スライダーで板を回してみよう。
+      （画面はマウス／指のドラッグで<b>回転</b>できます）
+    </div>
+    <div class="modebtns">
+      <button data-mode="1" class="active">点が 1つ</button>
+      <button data-mode="2">点が 2つ</button>
+      <button data-mode="3c">3つ（一直線上）</button>
+      <button data-mode="3n">3つ（一直線上にない）</button>
+    </div>
+    <div class="grid">
+      <div class="col-view" style="flex:1.6;">
+        <div class="view-box">
+          <div class="view-title">🧊 空間のようす</div>
+          <div id="planeView"></div>
+        </div>
+      </div>
+      <div class="col-ctrl" style="flex:1;">
+        <div class="slider-row">
+          <label>板をかたむける（回してみる）<span class="val" id="v-tilt">0°</span></label>
+          <input type="range" id="s-tilt" min="-90" max="90" step="1" value="20">
+          <div class="hint">板を回して、点をぜんぶ通したまま動かせるか確かめよう。</div>
+        </div>
+        <div class="slider-row">
+          <label>板をひねる（別の向き）<span class="val" id="v-spin">0°</span></label>
+          <input type="range" id="s-spin" min="-90" max="90" step="1" value="0">
+        </div>
+        <div class="verdict no" id="verdict">
+          <span id="verdict-main">面は自由に動いてしまう → <u>決まらない</u></span><br>
+          <span class="small" id="verdict-sub">点が1つだと、板はその点を中心にどんな向きにもなれる。</span>
+        </div>
+        <div class="btn-row">
+          <button class="act ghost" id="btn-plane-reset">板の向きをもどす</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">空間図形シミュレータ／中学1年 空間図形 第4時「どこから撮ったのかな？」用</div>
+</div>
+
+<script>
+/* ============================================================
+   共通ユーティリティ
+============================================================ */
+const deg = d => d*Math.PI/180;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ============================================================
+   タブ切り替え
+============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='cam'){ onCamResize(); }
+    if(btn.dataset.tab==='plane'){ onPlaneResize(); }
+  });
+});
+
+/* ============================================================
+   斜塔モデル（共通で使えるように関数化）
+============================================================ */
+function buildTower(){
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshLambertMaterial({color:0xf2ede1});
+  const R=1.15, H=9, seg=40;
+  // 円柱本体
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(R,R*1.05,H,seg), bodyMat);
+  body.position.y=H/2; g.add(body);
+  // アーケード（横のリング）で段を表現＋シルエットを特徴的に
+  const ringMat = new THREE.MeshLambertMaterial({color:0xdad2be});
+  for(let i=1;i<=7;i++){
+    const ry=H*i/8;
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(R*1.06,0.09,8,seg), ringMat);
+    ring.rotation.x=Math.PI/2; ring.position.y=ry; g.add(ring);
+  }
+  // 最上段（鐘楼）少し細く
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(R*0.82,R*0.9,1.1,seg), bodyMat);
+  top.position.y=H+0.55; g.add(top);
+  // 入口（対称性を崩して「向き」が分かるように）：-Z 側に赤い扉
+  const door=new THREE.Mesh(new THREE.BoxGeometry(0.5,1.3,0.12), new THREE.MeshLambertMaterial({color:0x8a3b2e}));
+  door.position.set(0,0.65,-R*1.02); g.add(door);
+  // 傾き：+X方向へ少しかたむける（斜塔）
+  g.rotation.z = deg(-9);
+  return g;
+}
+
+// ピサの「奇跡の広場（Piazza dei Miracoli）」の建物
+const MARBLE=0xeee9dc, ROOFC=0xb4614a;
+function buildCathedral(){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshLambertMaterial({color:MARBLE});
+  const roof=new THREE.MeshLambertMaterial({color:ROOFC});
+  // 身廊（東西に長い）
+  const nave=new THREE.Mesh(new THREE.BoxGeometry(11,3,3.4),mat); nave.position.y=1.5; g.add(nave);
+  const naveRoof=new THREE.Mesh(new THREE.CylinderGeometry(1.9,1.9,11,3),roof);
+  naveRoof.rotation.z=Math.PI/2; naveRoof.rotation.y=Math.PI/2; naveRoof.position.y=3.3; g.add(naveRoof);
+  // 翼廊（南北方向の腕）→ ラテン十字
+  const tr=new THREE.Mesh(new THREE.BoxGeometry(3.2,3,6.6),mat); tr.position.set(1.5,1.5,0); g.add(tr);
+  const trRoof=new THREE.Mesh(new THREE.CylinderGeometry(1.75,1.75,6.6,3),roof);
+  trRoof.position.set(1.5,3.25,0); g.add(trRoof);
+  // 交差部のドーム（ピサ大聖堂の楕円ドーム）
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1.7,20,16,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshLambertMaterial({color:0x9bb0b8}));
+  dome.scale.set(1,1.25,1); dome.position.set(1.5,3.0,0); g.add(dome);
+  // 西正面（ファサード）を少し高く
+  const fac=new THREE.Mesh(new THREE.BoxGeometry(0.6,3.8,3.6),mat); fac.position.set(-5.5,1.9,0); g.add(fac);
+  return g;
+}
+function buildBaptistery(){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshLambertMaterial({color:MARBLE});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,3.2,28),mat); body.position.y=1.6; g.add(body);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(2.3,28,18,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshLambertMaterial({color:0xb9c4bf})); dome.position.y=3.2; g.add(dome);
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.35,1.2,16),new THREE.MeshLambertMaterial({color:ROOFC}));
+  tip.position.y=5.3; g.add(tip);
+  return g;
+}
+
+/* ============================================================
+   TAB 1 : カメラ視点シミュレータ
+============================================================ */
+const camWrap = document.getElementById('camView');
+const camScene = new THREE.Scene();
+camScene.background = new THREE.Color(0xbfe0f5);
+// ライト
+camScene.add(new THREE.AmbientLight(0xffffff,0.72));
+const sun = new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(8,16,10); camScene.add(sun);
+// 地面
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120,120),
+  new THREE.MeshLambertMaterial({color:0x8fb98f}));
+ground.rotation.x=-Math.PI/2; camScene.add(ground);
+// 広場のタイル風グリッド
+const grid = new THREE.GridHelper(60,30,0x6f9a6f,0x7ea87e); grid.position.y=0.02; camScene.add(grid);
+// 斜塔（鐘楼）… 3Dの模型は見やすさ優先で「斜塔のみ」
+const tower = buildTower(); camScene.add(tower);
+const piazza = new THREE.Group(); camScene.add(piazza); // 3Dは斜塔のみ（captureGhost互換のため空グループを残す）
+// 建物の配置（真上からの地図でのみ使用）
+const PIAZZA={ cathedral:{x:-8.5,z:2.0,lx:11.6,lz:6.6}, baptistery:{x:-16,z:2.2,r:2.3}, tower:{x:0,z:0} };
+
+const FOV=42;
+const camCamera = new THREE.PerspectiveCamera(FOV,1.5,0.1,500);
+const camRenderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+camWrap.appendChild(camRenderer.domElement);
+
+// ゴースト（お手本）用オーバーレイ画像
+const ghostImg = document.createElement('img');
+ghostImg.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;'
+  +'opacity:0.55;display:none;mix-blend-mode:normal;';
+camWrap.style.position='relative';
+camWrap.appendChild(ghostImg);
+
+// 教科書 p.197 の3枚（ア・イ・ウ）＝3つの撮影位置の候補
+// 斜塔は +X（東）へかたむいているので、立つ位置によって見え方が変わる
+const SCEN={
+  a:{label:'ア', img:'画像/kadai_a.png', dir:'北から', see:'かたむきが 左 に見える',
+     T:{x:0,  z:14, h:2.4, az:180, pt:10}},   // 北に立ち、南を向く → かたむきは左
+  i:{label:'イ', img:'画像/kadai_i.png', dir:'西から', see:'ほぼ まっすぐ に見える',
+     T:{x:-15, z:0, h:2.4, az:90,  pt:10}},    // 西に立ち、東を向く → かたむきは向こう向き
+  u:{label:'ウ', img:'画像/kadai_u.png', dir:'南から', see:'かたむきが 右 に見える',
+     T:{x:0, z:-14, h:2.4, az:0,   pt:10}},    // 南に立ち、北を向く → かたむきは右
+};
+let curScen='u';
+// 目標（正解）パラメータ（選んだお手本の位置）
+const TARGET={...SCEN.u.T};
+// 現在値
+const P={x:6, z:-8, h:2.0, az:20, pt:0};
+
+const S={x:document.getElementById('s-x'), z:document.getElementById('s-z'),
+  h:document.getElementById('s-h'), az:document.getElementById('s-az'), pt:document.getElementById('s-pt')};
+const V={x:document.getElementById('v-x'), z:document.getElementById('v-z'),
+  h:document.getElementById('v-h'), az:document.getElementById('v-az'), pt:document.getElementById('v-pt')};
+
+function applyCamera(){
+  camCamera.position.set(P.x, P.h, P.z);
+  const a=deg(P.az), t=deg(P.pt);
+  // az=0 で +Z（奥）を向く
+  const dir=new THREE.Vector3(Math.sin(a)*Math.cos(t), Math.sin(t), Math.cos(a)*Math.cos(t));
+  camCamera.lookAt(P.x+dir.x, P.h+dir.y, P.z+dir.z);
+}
+function readSliders(){
+  P.x=+S.x.value; P.z=+S.z.value; P.h=+S.h.value; P.az=+S.az.value; P.pt=+S.pt.value;
+  V.x.textContent=P.x.toFixed(1); V.z.textContent=P.z.toFixed(1); V.h.textContent=P.h.toFixed(1);
+  V.az.textContent=P.az+'°'; V.pt.textContent=P.pt+'°';
+}
+function writeSliders(){
+  S.x.value=P.x; S.z.value=P.z; S.h.value=P.h; S.az.value=P.az; S.pt.value=P.pt; readSliders();
+}
+
+// 一致度計算（パラメータ距離）
+function matchPct(){
+  const azDiff=((P.az-TARGET.az+540)%360)-180; // 方位角は360°で一周（−180と180は同じ向き）
+  const dx=(P.x-TARGET.x)/40, dz=(P.z-TARGET.z)/28, dh=(P.h-TARGET.h)/8.5,
+        da=azDiff/140, dt=(P.pt-TARGET.pt)/60;
+  const err=Math.sqrt(dx*dx*1.3+dz*dz*1.3+dh*dh*0.7+da*da*1.0+dt*dt*0.9)/Math.sqrt(5.2);
+  return clamp(Math.round((1-err*2.4)*100),0,100);
+}
+const camMsg=document.getElementById('cam-msg');
+const matchBar=document.getElementById('match-bar');
+const matchPctEl=document.getElementById('match-pct');
+function updateMatch(){
+  const m=matchPct();
+  matchBar.style.width=m+'%';
+  matchPctEl.textContent=m+'%';
+  let col='#e8833a', msg='';
+  if(m>=97){col='#27ae60'; msg='🎉 ぴったり！ この「1点」だけが撮影ポイントだね。';}
+  else if(m>=80){col='#2ecc71'; msg='あと少し！ 向きや仰角も合わせてみよう。';}
+  else if(m>=50){col='#f39c12'; msg='だいぶ近づいた。地図の★に近づこう。';}
+  else {col='#e8833a'; msg='まだ違う場所から撮っているみたい。';}
+  matchBar.style.background=col;
+  camMsg.style.color=col; camMsg.textContent=msg;
+}
+
+// お手本（ゴースト）を生成：目標カメラで斜塔だけを描画してキャプチャ
+function captureGhost(){
+  const savePos=camCamera.position.clone();
+  const saveQuat=camCamera.quaternion.clone();
+  const saveBg=camScene.background;
+  ground.visible=false; grid.visible=false; piazza.visible=false;
+  camScene.background=null; camRenderer.setClearColor(0x000000,0);
+  camCamera.position.set(TARGET.x,TARGET.h,TARGET.z);
+  const a=deg(TARGET.az),t=deg(TARGET.pt);
+  const dir=new THREE.Vector3(Math.sin(a)*Math.cos(t),Math.sin(t),Math.cos(a)*Math.cos(t));
+  camCamera.lookAt(TARGET.x+dir.x,TARGET.h+dir.y,TARGET.z+dir.z);
+  // ゴーストはオレンジ色に着色
+  tower.traverse(o=>{ if(o.material){o.userData._m=o.material; o.material=new THREE.MeshBasicMaterial({color:0xe8833a});}});
+  camRenderer.render(camScene,camCamera);
+  ghostImg.src=camRenderer.domElement.toDataURL();
+  // 復帰
+  tower.traverse(o=>{ if(o.userData._m){o.material=o.userData._m; delete o.userData._m;}});
+  ground.visible=true; grid.visible=true; piazza.visible=true;
+  camScene.background=saveBg; camRenderer.setClearColor(0x000000,1);
+  camCamera.position.copy(savePos); camCamera.quaternion.copy(saveQuat);
+}
+
+/* --- 地図（真上から） Canvas2D --- */
+const mapCv=document.getElementById('mapCanvas');
+const mctx=mapCv.getContext('2d');
+function drawMap(){
+  const w=mapCv.width, h=mapCv.height;
+  mctx.clearRect(0,0,w,h);
+  // ワールド範囲 x:[-24,24], z:[18,-24]（斜塔を中心に、ぐるっと1周が収まる範囲）
+  const wx0=-24,wx1=24, wz0=18,wz1=-24; // 上が北(+z奥)…z1(奥)を上に
+  const pad=8;
+  const sx=v=>pad+(v-wx0)/(wx1-wx0)*(w-2*pad);
+  const sz=v=>pad+(v-wz0)/(wz1-wz0)*(h-2*pad);
+  const wr=r=>Math.abs(sx(r)-sx(0));
+  // 芝生（奇跡の広場）＋刈り込みストライプ
+  mctx.fillStyle='#a6cf86'; mctx.fillRect(0,0,w,h);
+  mctx.strokeStyle='#9bc879'; mctx.lineWidth=6; mctx.globalAlpha=0.5;
+  for(let gz=16;gz>=-20;gz-=4){mctx.beginPath();mctx.moveTo(sx(-24),sz(gz));mctx.lineTo(sx(24),sz(gz));mctx.stroke();}
+  mctx.globalAlpha=1;
+  // 建物の色
+  const roofF='#c37340',roofS='#a85c33',domeF='#b3c2bd',domeS='#8a9c96',marbF='#ece5d4',marbS='#c9bfa8';
+  const rectFS=(r,f,s)=>{mctx.fillStyle=f;mctx.fillRect(r[0],r[1],r[2],r[3]);mctx.strokeStyle=s;mctx.lineWidth=1.4;mctx.strokeRect(r[0],r[1],r[2],r[3]);};
+  const circF=(x,z,rad,f,s)=>{mctx.beginPath();mctx.arc(sx(x),sz(z),wr(rad),0,7);mctx.fillStyle=f;mctx.fill();if(s){mctx.strokeStyle=s;mctx.lineWidth=1.3;mctx.stroke();}};
+  // 大聖堂・洗礼堂は描かない（主役の斜塔だけに集中する）
+  // 斜塔（主役）
+  mctx.beginPath(); mctx.arc(sx(0)+2,sz(0)+2,wr(0.95),0,7); mctx.fillStyle='rgba(85,105,75,0.4)'; mctx.fill();
+  circF(0,0,0.95,'#efe9da',marbS); circF(0,0,0.6,'#e3d9c2',null); circF(0,0,0.3,'#d6c9ab',null);
+  mctx.strokeStyle='#8a3b2e'; mctx.lineWidth=2; mctx.beginPath(); mctx.moveTo(sx(0),sz(0)); mctx.lineTo(sx(1.8),sz(0)); mctx.stroke();
+  // ラベル（白チップ）
+  mctx.font='bold 10px sans-serif'; mctx.textAlign='center';
+  const chip=(txt,wx,wz,col)=>{const px=sx(wx),py=sz(wz),tw=mctx.measureText(txt).width+8;
+    mctx.fillStyle='rgba(255,255,255,0.9)'; mctx.fillRect(px-tw/2,py-8,tw,15);
+    mctx.fillStyle=col; mctx.fillText(txt,px,py+3);};
+  chip('斜塔',0,-3,'#c0392b');
+  // 方位（候補マーカーと重ならないよう左端に寄せる）
+  mctx.fillStyle='#4a6a4a'; mctx.font='11px sans-serif'; mctx.textAlign='left';
+  mctx.fillText('奥（北）',4,12); mctx.fillText('手前（南）',4,h-4);
+  // 位置の候補（ア・イ・ウ）… 選んでいないものは紫のマル、選んだものは★
+  mctx.font='bold 12px sans-serif'; mctx.textAlign='center';
+  Object.keys(SCEN).forEach(k=>{
+    const s=SCEN[k], px=sx(s.T.x), py=sz(s.T.z);
+    if(k!==curScen){
+      mctx.beginPath(); mctx.arc(px,py,6,0,7);
+      mctx.fillStyle='rgba(142,68,173,0.85)'; mctx.fill();
+      mctx.strokeStyle='#fff'; mctx.lineWidth=2; mctx.stroke();
+    }
+    const tw=mctx.measureText(s.label).width+7;
+    mctx.fillStyle='rgba(255,255,255,0.92)'; mctx.fillRect(px-tw/2,py-21,tw,14);
+    mctx.fillStyle=(k===curScen)?'#c0392b':'#8e44ad';
+    mctx.fillText(s.label, px, py-10);
+  });
+  // 目標(★)＝選んだお手本の位置
+  drawStar(sx(TARGET.x),sz(TARGET.z),8,'#e8833a');
+  // カメラ現在地
+  const cx=sx(P.x), cz=sz(P.z);
+  // 視線コーン
+  const a=deg(P.az);
+  const dirx=Math.sin(a), dirz=Math.cos(a);
+  const half=deg(FOV/2*1.5);
+  const L=48;
+  const l1=a-half, l2=a+half;
+  mctx.beginPath(); mctx.moveTo(cx,cz);
+  mctx.lineTo(cx+Math.sin(l1)*L, cz-Math.cos(l1)*L*(h/(h))); // note sz flips z; approximate
+  // より正確にワールドで先端を計算
+  mctx.closePath();
+  // 視野コーン（ワールド座標で）
+  function tip(ang){ const tx=P.x+Math.sin(ang)*22, tz=P.z+Math.cos(ang)*22; return [sx(tx),sz(tz)];}
+  const [t1x,t1y]=tip(l1),[t2x,t2y]=tip(l2);
+  mctx.beginPath(); mctx.moveTo(cx,cz); mctx.lineTo(t1x,t1y); mctx.lineTo(t2x,t2y); mctx.closePath();
+  mctx.fillStyle='rgba(43,125,233,0.15)'; mctx.fill();
+  // カメラ本体
+  mctx.beginPath(); mctx.arc(cx,cz,6,0,7); mctx.fillStyle='#2b7de9'; mctx.fill();
+  mctx.strokeStyle='#fff'; mctx.lineWidth=2; mctx.stroke();
+  mctx.fillStyle='#2b7de9'; mctx.textAlign='left'; mctx.fillText('カメラ',cx+9,cz+4);
+}
+function drawStar(cx,cy,r,color){
+  mctx.beginPath();
+  for(let i=0;i<10;i++){const ang=Math.PI/5*i-Math.PI/2;const rr=i%2?r*0.45:r;
+    const x=cx+Math.cos(ang)*rr,y=cy+Math.sin(ang)*rr; i?mctx.lineTo(x,y):mctx.moveTo(x,y);}
+  mctx.closePath(); mctx.fillStyle=color; mctx.fill();
+  mctx.strokeStyle='#fff'; mctx.lineWidth=1.5; mctx.stroke();
+}
+
+/* --- 側面図（真横から）：高さと仰角を可視化 Canvas2D --- */
+const sideCv=document.getElementById('sideCanvas');
+const sctx=sideCv.getContext('2d');
+function drawSide(){
+  const w=sideCv.width, h=sideCv.height; if(!w) return;
+  sctx.clearRect(0,0,w,h);
+  const padL=42, padR=16, padT=16, padB=26;
+  const dmax=24, ymax=13;
+  const gx=d=>padL+d/dmax*(w-padL-padR);          // 横：塔からの水平距離
+  const gy=v=>h-padB-v/ymax*(h-padT-padB);          // 縦：高さ
+  // グリッド
+  sctx.strokeStyle='#e8eef3'; sctx.lineWidth=1;
+  for(let d=0;d<=24;d+=4){sctx.beginPath();sctx.moveTo(gx(d),gy(0));sctx.lineTo(gx(d),gy(ymax));sctx.stroke();}
+  for(let v=0;v<=12;v+=4){sctx.beginPath();sctx.moveTo(gx(0),gy(v));sctx.lineTo(gx(dmax),gy(v));sctx.stroke();}
+  // 地面
+  sctx.strokeStyle='#8fb98f'; sctx.lineWidth=2.5; sctx.beginPath(); sctx.moveTo(gx(0),gy(0)); sctx.lineTo(gx(dmax),gy(0)); sctx.stroke();
+  sctx.fillStyle='#9aa7b2'; sctx.font='10px sans-serif'; sctx.textAlign='left';
+  sctx.fillText('高さ(m)',4,gy(ymax)+4); sctx.textAlign='right'; sctx.fillText('水平きょり →',w-6,gy(0)+18);
+  // 斜塔（左端に少し傾けて）
+  const tw=gx(1.1)-gx(0);
+  sctx.save(); sctx.translate(gx(0),gy(0)); sctx.rotate(-9*Math.PI/180);
+  sctx.fillStyle='#eae4d5'; sctx.strokeStyle='#b7ad97'; sctx.lineWidth=1.5;
+  const th=gy(0)-gy(10);
+  sctx.fillRect(-tw*0.5,th,tw, -th); sctx.strokeRect(-tw*0.5,th,tw,-th);
+  sctx.restore();
+  sctx.fillStyle='#7a8794'; sctx.textAlign='center'; sctx.fillText('斜塔',gx(0),gy(10.6));
+  // カメラ位置
+  const d=Math.sqrt(P.x*P.x+P.z*P.z);
+  const cx=gx(Math.min(d,dmax)), cy=gy(Math.min(P.h,ymax));
+  // 高さの点線
+  sctx.strokeStyle='#b0bcc7'; sctx.setLineDash([4,3]); sctx.lineWidth=1.2;
+  sctx.beginPath(); sctx.moveTo(cx,cy); sctx.lineTo(cx,gy(0)); sctx.stroke();
+  // 水平の基準線
+  sctx.beginPath(); sctx.moveTo(cx,cy); sctx.lineTo(cx-64,cy); sctx.stroke();
+  sctx.setLineDash([]);
+  sctx.fillStyle='#5d6d7e'; sctx.textAlign='center';
+  sctx.fillText('高さ '+P.h.toFixed(1),cx,(cy+gy(0))/2);
+  // 仰角の視線（画面角度でそのまま描く）
+  const a=-P.pt*Math.PI/180; // 上向きが負(screen)
+  const L=70;
+  const ex=cx-L*Math.cos(P.pt*Math.PI/180), ey=cy-L*Math.sin(P.pt*Math.PI/180);
+  sctx.strokeStyle='#2b7de9'; sctx.lineWidth=2.4; sctx.beginPath(); sctx.moveTo(cx,cy); sctx.lineTo(ex,ey); sctx.stroke();
+  // 仰角の弧
+  sctx.strokeStyle='#e8833a'; sctx.lineWidth=2;
+  sctx.beginPath(); sctx.arc(cx,cy,26,Math.PI, Math.PI - P.pt*Math.PI/180, P.pt<0); sctx.stroke();
+  sctx.fillStyle='#e8833a'; sctx.font='bold 11px sans-serif'; sctx.textAlign='right';
+  sctx.fillText('仰角 '+P.pt+'°',cx-30,cy-8);
+  // カメラ本体
+  sctx.beginPath(); sctx.arc(cx,cy,6,0,7); sctx.fillStyle='#2b7de9'; sctx.fill();
+  sctx.strokeStyle='#fff'; sctx.lineWidth=2; sctx.stroke();
+  sctx.fillStyle='#2b7de9'; sctx.textAlign='left'; sctx.font='bold 11px sans-serif';
+  sctx.fillText('カメラ',cx+9,cy-6);
+}
+
+function onCamResize(){
+  const w=camWrap.clientWidth||640; const h=Math.round(w/1.5);
+  camRenderer.setSize(w,h,false); camRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  camCamera.aspect=w/h; camCamera.updateProjectionMatrix();
+  // 2つの補助図
+  const mw=mapCv.clientWidth||210; mapCv.width=mw; mapCv.height=200;
+  const sw=sideCv.clientWidth||210; sideCv.width=sw; sideCv.height=200;
+  drawMap(); drawSide();
+}
+
+let orbiting=false, orbitAng=0;
+function camLoop(){
+  requestAnimationFrame(camLoop);
+  if(orbiting){
+    orbitAng += 0.010;
+    const R=16, hy=5.5;
+    camCamera.position.set(Math.sin(orbitAng)*R, hy, Math.cos(orbitAng)*R);
+    camCamera.lookAt(0,4.5,0);
+    // 真上の地図・側面図も連動して回す
+    P.x=Math.sin(orbitAng)*R; P.z=Math.cos(orbitAng)*R; P.h=hy;
+    P.az=(orbitAng+Math.PI)*180/Math.PI;
+    drawMap(); drawSide();
+  } else {
+    applyCamera();
+  }
+  camRenderer.render(camScene,camCamera);
+}
+
+// スライダーイベント
+Object.values(S).forEach(s=>s.addEventListener('input',()=>{readSliders();updateMatch();drawMap();drawSide();}));
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  Object.assign(P,{x:6,z:-8,h:2.0,az:20,pt:0}); writeSliders(); updateMatch(); drawMap(); drawSide();
+});
+document.getElementById('btn-answer').addEventListener('click',()=>{
+  Object.assign(P,{x:TARGET.x,z:TARGET.z,h:TARGET.h,az:TARGET.az,pt:TARGET.pt});
+  writeSliders(); updateMatch(); drawMap(); drawSide();
+});
+// お手本の写真をえらぶ（3つの撮影位置の候補を切りかえる）
+const refPhoto=document.getElementById('ref-photo');
+const scenTip=document.getElementById('scen-tip');
+function selectScen(k){
+  curScen=k; const s=SCEN[k];
+  Object.assign(TARGET, s.T);                 // 目標＝その写真の撮影位置
+  Object.assign(P, s.T);                       // カメラをその撮影位置へ自動で移動
+  writeSliders();                              // スライダー・数値表示を更新（applyCameraが毎フレーム反映）
+  refPhoto.src=s.img;                          // お手本の写真を差しかえ
+  document.getElementById('photo-box').classList.remove('noimg');
+  scenTip.innerHTML='写真<b>'+s.label+'</b>（'+s.dir+'）の位置に移動 … '+s.see;
+  document.querySelectorAll('#scen-row .scen').forEach(b=>b.classList.toggle('active',b.dataset.scen===k));
+  if(ghostOn) captureGhost();                  // 表示中ならお手本ゴーストも更新
+  updateMatch(); drawMap(); drawSide();
+}
+document.querySelectorAll('#scen-row .scen').forEach(b=>{
+  b.addEventListener('click',()=>{ if(!orbiting) selectScen(b.dataset.scen); });
+});
+let ghostOn=false;
+document.getElementById('btn-ghost').addEventListener('click',()=>{
+  ghostOn=!ghostOn;
+  if(ghostOn){ captureGhost(); ghostImg.style.display='block';
+    document.getElementById('btn-ghost').textContent='お手本を隠す ⟳'; }
+  else { ghostImg.style.display='none'; document.getElementById('btn-ghost').textContent='お手本の表示 ⟳'; }
+});
+// 自動回転（動画のように塔の周りを1周）
+const btnOrbit=document.getElementById('btn-orbit');
+btnOrbit.addEventListener('click',()=>{
+  orbiting=!orbiting;
+  btnOrbit.classList.toggle('on',orbiting);
+  btnOrbit.textContent = orbiting ? '■ 回転を止める' : '▶ 斜塔のまわりをぐるっと1周（動画）';
+  Object.values(S).forEach(s=>{s.disabled=orbiting; s.style.opacity=orbiting?0.4:1;});
+  if(orbiting){
+    orbitAng=deg(P.az);
+    if(ghostOn){ ghostOn=false; ghostImg.style.display='none';
+      document.getElementById('btn-ghost').textContent='お手本の表示 ⟳'; }
+    camMsg.style.color='#8e44ad'; camMsg.textContent='いろいろな向きから見ると、写真の見え方も変わるね。';
+  } else { readSliders(); updateMatch(); }
+});
+
+/* ============================================================
+   TAB 2 : 平面が決まる条件
+============================================================ */
+const planeWrap=document.getElementById('planeView');
+const pScene=new THREE.Scene();
+pScene.background=new THREE.Color(0xf2f6fa);
+pScene.add(new THREE.AmbientLight(0xffffff,0.8));
+const pl=new THREE.DirectionalLight(0xffffff,0.6); pl.position.set(6,10,8); pScene.add(pl);
+// 参照グリッド（床）
+const pgrid=new THREE.GridHelper(16,16,0xccd6df,0xe1e8ee); pgrid.position.y=-0.01; pScene.add(pgrid);
+// 軸っぽい薄い箱（空間の広がりの目印）
+const pCamera=new THREE.PerspectiveCamera(45,1.6,0.1,200);
+const pRenderer=new THREE.WebGLRenderer({antialias:true});
+planeWrap.appendChild(pRenderer.domElement);
+
+// 点（最大3個）
+const ptMat=new THREE.MeshLambertMaterial({color:0xe74c3c});
+const points=[];
+const PTPOS=[ new THREE.Vector3(-3,0.6,-2), new THREE.Vector3(3,0.6,1.5), new THREE.Vector3(0.3,2.6,2.6) ];
+const PTPOS_COLLINEAR=[ new THREE.Vector3(-3,0.5,-2), new THREE.Vector3(0,1.4,0), new THREE.Vector3(3,2.3,2) ];
+for(let i=0;i<3;i++){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.28,20,20),ptMat.clone());
+  pScene.add(m); points.push(m);
+}
+// 回転の軸（オレンジの棒）を描くためのグループ
+const axisGroup=new THREE.Group(); pScene.add(axisGroup);
+function clearAxes(){ while(axisGroup.children.length){const c=axisGroup.children.pop(); c.geometry.dispose(); c.material.dispose(); axisGroup.remove(c);} }
+function addAxisRod(origin,dir,len,color){
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,2*len,14),
+    new THREE.MeshBasicMaterial({color}));
+  rod.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize()));
+  rod.position.copy(origin); axisGroup.add(rod);
+  // 軸の両端に矢じり
+  [1,-1].forEach(s=>{
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.16,0.34,14), new THREE.MeshBasicMaterial({color}));
+    cone.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().multiplyScalar(s).normalize()));
+    cone.position.copy(origin.clone().addScaledVector(dir.clone().normalize(),s*len)); axisGroup.add(cone);
+  });
+}
+const AXIS_COL=0xe8833a;
+// 平面（板）
+const planeGeo=new THREE.PlaneGeometry(9,9);
+const planeMat=new THREE.MeshLambertMaterial({color:0x2b7de9,transparent:true,opacity:0.45,side:THREE.DoubleSide});
+const planeMesh=new THREE.Mesh(planeGeo,planeMat);
+pScene.add(planeMesh);
+// 平面の枠
+const planeEdge=new THREE.LineSegments(new THREE.EdgesGeometry(planeGeo),
+  new THREE.LineBasicMaterial({color:0x1c5fbf}));
+planeMesh.add(planeEdge);
+
+let mode='1';
+const sTilt=document.getElementById('s-tilt'), sSpin=document.getElementById('s-spin');
+const vTilt=document.getElementById('v-tilt'), vSpin=document.getElementById('v-spin');
+const verdict=document.getElementById('verdict');
+const vMain=document.getElementById('verdict-main'), vSub=document.getElementById('verdict-sub');
+
+function setMode(m){
+  mode=m;
+  document.querySelectorAll('.modebtns button').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+  // 点の配置と表示個数
+  const collinear=(m==='3c');
+  const base = collinear?PTPOS_COLLINEAR:PTPOS;
+  for(let i=0;i<3;i++){
+    points[i].position.copy(base[i]);
+    points[i].visible = (m==='1')? i<1 : (m==='2')? i<2 : i<3;
+  }
+  updatePlane();
+  updateVerdict();
+}
+function updateVerdict(){
+  const determined=(mode==='3n');
+  verdict.className='verdict '+(determined?'yes':'no');
+  if(mode==='1'){vMain.innerHTML='面は自由に動いてしまう → <u>決まらない</u>';
+    vSub.innerHTML='点が1つだと、<b style="color:#e8833a">オレンジの軸</b>のどれでも回せる＝どんな向きにもなれる。';}
+  else if(mode==='2'){vMain.innerHTML='2点を結ぶ直線を軸に回る → <u>決まらない</u>';
+    vSub.innerHTML='2点を通る板は、<b style="color:#e8833a">オレンジの軸（2点を通る直線）</b>のまわりに回ってしまう。';}
+  else if(mode==='3c'){vMain.innerHTML='3点が一直線上 → やっぱり<u>決まらない</u>';
+    vSub.innerHTML='3点が一直線上だと、<b style="color:#e8833a">オレンジの軸</b>が1本残り、板は回ってしまう。';}
+  else {vMain.innerHTML='ピタッと1つに固定！ → <u>決まる</u>';
+    vSub.innerHTML='一直線上にない3点を通る平面は、回転の軸が無くなり、<b>ただ1つに決まる</b>。';}
+}
+
+// 板の向きを更新
+function updatePlane(){
+  const tilt=deg(+sTilt.value), spin=deg(+sSpin.value);
+  vTilt.textContent=sTilt.value+'°'; vSpin.textContent=sSpin.value+'°';
+  clearAxes();
+
+  if(mode==='3n'){
+    // 一直線上にない3点 → 平面は一意。tilt/spinは無効。回転の軸は無い。
+    const a=points[0].position, b=points[1].position, c=points[2].position;
+    const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)).normalize();
+    const center=new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1/3);
+    orientPlane(center,n);
+    disableSlider(sTilt,true); disableSlider(sSpin,true);
+    return;
+  }
+
+  if(mode==='1'){
+    // 1点中心 → どんな軸でも回せる。2本の軸（かたむけ・ひねり）を描く。
+    const p=points[0].position;
+    const tiltAxis=new THREE.Vector3(1,0,0);   // かたむけの軸
+    const spinAxis=new THREE.Vector3(0,1,0);   // ひねりの軸（縦）
+    const n=new THREE.Vector3(0,1,0).applyAxisAngle(tiltAxis,tilt).applyAxisAngle(spinAxis,spin);
+    orientPlane(p,n);
+    addAxisRod(p,tiltAxis,3.4,AXIS_COL);
+    addAxisRod(p,spinAxis,3.0,AXIS_COL);
+    disableSlider(sTilt,false); disableSlider(sSpin,false);
+  } else {
+    // 2点 or 3点一直線 → 直線がただ1本の「回転の軸」。tiltのみ有効。
+    const a=points[0].position;
+    const b=points[(mode==='2')?1:2].position;
+    const axis=new THREE.Vector3().subVectors(b,a).normalize();
+    const mid=new THREE.Vector3().addVectors(a,b).multiplyScalar(0.5);
+    let ref=new THREE.Vector3(0,1,0);
+    if(Math.abs(axis.dot(ref))>0.9) ref=new THREE.Vector3(1,0,0);
+    const u=new THREE.Vector3().crossVectors(axis,ref).normalize();
+    const n=u.clone().applyAxisAngle(axis,tilt).normalize();
+    orientPlane(mid,n);
+    addAxisRod(mid,axis,5.2,AXIS_COL);       // 回転の軸（点を通る直線）
+    disableSlider(sTilt,false); disableSlider(sSpin,true);
+  }
+}
+function disableSlider(s,off){ s.disabled=off; s.style.opacity=off?0.35:1; }
+function orientPlane(center,normal){
+  planeMesh.position.copy(center);
+  const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),normal);
+  planeMesh.quaternion.copy(q);
+}
+
+document.querySelectorAll('.modebtns button').forEach(b=>{
+  b.addEventListener('click',()=>setMode(b.dataset.mode));
+});
+sTilt.addEventListener('input',updatePlane);
+sSpin.addEventListener('input',updatePlane);
+document.getElementById('btn-plane-reset').addEventListener('click',()=>{
+  sTilt.value=20; sSpin.value=0; updatePlane();
+});
+
+// カスタム・オービット（ドラッグで視点回転）
+let pAz=0.9, pEl=0.5, pDist=15;
+let dragging=false, lastX=0,lastY=0;
+function updatePCam(){
+  const x=pDist*Math.cos(pEl)*Math.sin(pAz);
+  const y=pDist*Math.sin(pEl);
+  const z=pDist*Math.cos(pEl)*Math.cos(pAz);
+  pCamera.position.set(x,y+1,z); pCamera.lookAt(0,1,0);
+}
+planeWrap.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+window.addEventListener('pointerup',()=>dragging=false);
+window.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  pAz -= (e.clientX-lastX)*0.008; pEl=clamp(pEl+(e.clientY-lastY)*0.006,0.05,1.35);
+  lastX=e.clientX; lastY=e.clientY;
+});
+planeWrap.addEventListener('wheel',e=>{e.preventDefault();pDist=clamp(pDist+e.deltaY*0.02,8,26);},{passive:false});
+
+function onPlaneResize(){
+  const w=planeWrap.clientWidth||640; const h=Math.round(w/1.6);
+  pRenderer.setSize(w,h,false); pRenderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  pCamera.aspect=w/h; pCamera.updateProjectionMatrix();
+}
+function planeLoop(){
+  requestAnimationFrame(planeLoop);
+  updatePCam();
+  pRenderer.render(pScene,pCamera);
+}
+
+/* ============================================================
+   起動
+============================================================ */
+window.addEventListener('resize',()=>{onCamResize();onPlaneResize();drawMap();});
+onCamResize(); readSliders(); selectScen('u'); updateMatch(); drawMap(); camLoop();
+onPlaneResize(); setMode('1'); planeLoop();
+</script>
+</body>
+</html>

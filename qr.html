@@ -71,6 +71,10 @@
             border-top: 6px solid #b45309;
         }
 
+        .card.spatial {
+            border-top: 6px solid #8e44ad;
+        }
+
         .card h2 {
             margin: 0 0 4px 0;
             font-size: 1.3rem;
@@ -148,6 +152,14 @@
             background: #92400e;
         }
 
+        .card.spatial .open-btn {
+            background: #8e44ad;
+        }
+
+        .card.spatial .open-btn:hover {
+            background: #763a91;
+        }
+
         .note {
             max-width: 720px;
             margin: 28px auto 0 auto;
@@ -211,6 +223,14 @@
             <div class="url-display" id="url-terrain"></div>
             <a class="open-btn" id="link-terrain" href="index.html">このページを開く</a>
         </div>
+
+        <div class="card spatial">
+            <h2>空間図形</h2>
+            <div class="grade">中学1年 ／ 平面が1つに決まる条件（どこから撮ったのかな？）</div>
+            <div class="qr-wrap" id="qr-spatial"></div>
+            <div class="url-display" id="url-spatial"></div>
+            <a class="open-btn" id="link-spatial" href="spatial/">このページを開く</a>
+        </div>
     </div>
 
     <div class="note">
@@ -224,13 +244,16 @@
         const linearUrl = new URL('lesson.html', base).href;
         const sqrtUrl = new URL('sqrt.html', base).href;
         const terrainUrl = new URL('index.html', base).href;
+        const spatialUrl = new URL('spatial/', base).href;
 
         document.getElementById('url-linear').textContent = linearUrl;
         document.getElementById('url-sqrt').textContent = sqrtUrl;
         document.getElementById('url-terrain').textContent = terrainUrl;
+        document.getElementById('url-spatial').textContent = spatialUrl;
         document.getElementById('link-linear').href = linearUrl;
         document.getElementById('link-sqrt').href = sqrtUrl;
         document.getElementById('link-terrain').href = terrainUrl;
+        document.getElementById('link-spatial').href = spatialUrl;
 
         // QR描画
         new QRCode(document.getElementById('qr-linear'), {
@@ -253,6 +276,15 @@
 
         new QRCode(document.getElementById('qr-terrain'), {
             text: terrainUrl,
+            width: 230,
+            height: 230,
+            colorDark: '#0f172a',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        new QRCode(document.getElementById('qr-spatial'), {
+            text: spatialUrl,
             width: 230,
             height: 230,
             colorDark: '#0f172a',

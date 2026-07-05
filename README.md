@@ -1,6 +1,6 @@
 # Lesson Plans: Mock Lessons for the "Teaching Methods for Mathematics Teachers 1" (数学科指導法１) Course
 
-This repository contains the lesson plan overviews and the interactive web simulators for **two** mock lessons designed for the 数学科指導法１ course.
+This repository contains the lesson plan overviews and the interactive web simulators for **three** mock lessons designed for the 数学科指導法１ course.
 
 ---
 
@@ -72,6 +72,40 @@ To address the students' current learning profile and achieve the goals above, t
 
 ---
 
+## Lesson Plan C: Spatial Figures (空間図形)
+
+### Overview
+- **Subject:** Mathematics
+- **Target Grade:** Junior High School 1st Year (7th Grade equivalent)
+- **Unit:** Chapter 6: Spatial Figures
+- **Section:** How to View and Investigate Solids (The condition for a plane to be uniquely determined)
+
+### 1. Unit Concept & Value (単元観)
+Rather than presenting the fact "a plane is determined by three points not on the same straight line" as a rule to be memorised, this unit lets students **discover** the condition through a familiar, concrete question: *"From where was this photograph of the Leaning Tower of Pisa taken?"*
+
+By abstracting the tilted tower as a **single straight line** and the map/ground as a **plane**, students investigate why one viewpoint fixes exactly one picture. Moving from an intuitive, photographic problem to a general geometric condition lets them experience how a real-world situation is idealised into mathematics, and appreciate why the condition (not on one line, three points) is *necessary* — not just true.
+
+### 2. Student Profile (生徒の実態)
+A common characteristic among the students in this class is that many find it difficult to reason about three-dimensional space from two-dimensional representations, and tend to accept conditions such as "three points determine a plane" without grasping *why* fewer points, or collinear points, are insufficient.
+
+Therefore, before stating the condition, the lesson links the abstract idea to concrete, manipulable experiences — a tilted pencil as a line, a fingertip as a point, and a plastic board as a plane — so that students feel the "wobble" that remains until the plane is finally fixed.
+
+### 3. Learning Goals (学習目標)
+Based on the Japanese Course of Study (学習指導要領), this lesson focuses on the following evaluation criteria:
+
+* **Knowledge & Skills:** Understand positional relationships between lines and planes in space, and that a plane is determined by "three points not on the same straight line" (equivalently, by a line and a point not on it).
+* **Thinking, Judging, & Expressing:** Regard the tower as a line and the camera's viewpoint as a point; investigate why the shooting position is fixed to just one; and logically explain the condition to others using the ideas of a *rotation axis*, *turning*, and *being fixed*.
+* **Attitude:** Proactively relate the condition to everyday objects and solids (camera tripods, the vertices of a rectangular solid), appreciating the consistency and usefulness of the mathematical condition.
+
+### 4. Instructional Strategies (指導の手立て)
+To address the students' current learning profile and achieve the goals above, the lesson will employ the following strategies:
+
+* **Contextualised Problem Solving:** The lesson opens with the textbook's activity "Where was it taken? (どこから撮ったのかな？)", matching three photographs (ア・イ・ウ) of the leaning tower to three positions (A・B・C) on the map of the Piazza dei Miracoli. Because the tower leans in a fixed direction, its apparent tilt (left / straight / right) depends on where the photographer stands — a vivid entry point into "your viewpoint determines what you see."
+* **ICT Integration (Interactive Web Simulator):** Students use a custom-built HTML / Three.js simulator on their tablets. Selecting one of the three sample photos **automatically moves the camera to that photo's shooting position**, so students immediately see the view from there; sliders for position, height, direction, and elevation angle then let them explore how the tower's appearance changes as they "walk around" it (a full 360° orbit animation is also provided), with a top-view map showing the candidate positions. A second tab lets them test 1 / 2 / 3 (collinear) / 3 (non-collinear) points and discover that **only three points not on one line** stop the plane from rotating about an axis.
+* **Collaborative Learning with Concrete Manipulatives:** After individual exploration, students explain to a partner *why* the viewpoint is unique ("the tower (line) and where I stand (point) are both fixed, so the view is one"), then confirm the general condition with fingertips (points) and a plastic sheet (plane), feeling how the board keeps turning about an axis until a third, non-collinear point fixes it.
+
+---
+
 ## Files / コードの説明
 
 | File | Role | Notes |
@@ -80,6 +114,7 @@ To address the students' current learning profile and achieve the goals above, t
 | [`sqrt.html`](./sqrt.html) | **平方根 シミュレーター** (中3) | $\sqrt{2}$ 倍・$\sqrt{3}$ 倍した長方形の面積を SVG で可視化。スライダー（縦 $\sqrt{a}$ 倍 ／ 横 $\sqrt{b}$ 倍）で動かし、面積がピッタリ 6 になるとアンロックボタンが現れ、押すと「発展版（探索モード）」に遷移して別の整数面積を探せる。 |
 | [`index.html`](./index.html) | **富士山周辺 地形3Dマップ** (中2 一次関数 補助) | Plotly で描いた立体の地形図。マウス／指でぐるぐる回して、観測所の標高と位置の関係を立体的に確認できる。標高と気温の話題の導入用。 |
 | [`index2.html`](./index2.html) | 地形3Dマップ（ヘッダー無し版） | `index.html` から授業タイトル等のヘッダーを取り除いた版。プレーンに3Dマップだけ見せたい時に。 |
+| [`spatial/`](./spatial/) | **空間図形 シミュレーター** (中1) | ピサの斜塔（＝斜めに立てた1本の直線）を撮った3枚の写真（ア・イ・ウ）を選ぶと、その撮影位置へカメラが自動で移動。位置・高さ・向き・仰角のスライダーで塔のまわりを1周でき、立つ位置で見え方が変わることを体感。第2タブでは点1／2／3（一直線上）／3（一直線上にない）を試し、平面が1つに決まる条件を発見する。Three.js を使用。 |
 | [`qr.html`](./qr.html) | **QRコード掲示用ページ** | 上記3ページ（`lesson.html` ／ `sqrt.html` ／ `index.html`）への QRコードを並べて表示。`window.location` を基に絶対URLを生成するので、GitHub Pages・学内サーバー・ローカルファイル、どこに置いてもそのホストの該当ページを正しく指す。`@media print` 対応で印刷配布も可。 |
 
 ### QR コードの使い方
