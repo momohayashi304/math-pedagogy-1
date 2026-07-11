@@ -198,8 +198,8 @@
     <div class="modebtns">
       <button data-mode="1" class="active">点が 1つ</button>
       <button data-mode="2">点が 2つ</button>
-      <button data-mode="3c">3つ（一直線上）</button>
-      <button data-mode="3n">3つ（一直線上にない）</button>
+      <button data-mode="3c">3つ（1つの直線上）</button>
+      <button data-mode="3n">3つ（1つの直線上にない）</button>
     </div>
     <div class="grid">
       <div class="col-view" style="flex:1.6;">
@@ -718,10 +718,10 @@ function updateVerdict(){
     vSub.innerHTML='点が1つだと、<b style="color:#e8833a">オレンジの軸</b>のどれでも回せる＝どんな向きにもなれる。';}
   else if(mode==='2'){vMain.innerHTML='2点を結ぶ直線を軸に回る → <u>決まらない</u>';
     vSub.innerHTML='2点を通る板は、<b style="color:#e8833a">オレンジの軸（2点を通る直線）</b>のまわりに回ってしまう。';}
-  else if(mode==='3c'){vMain.innerHTML='3点が一直線上 → やっぱり<u>決まらない</u>';
-    vSub.innerHTML='3点が一直線上だと、<b style="color:#e8833a">オレンジの軸</b>が1本残り、板は回ってしまう。';}
+  else if(mode==='3c'){vMain.innerHTML='3点が1つの直線上 → やっぱり<u>決まらない</u>';
+    vSub.innerHTML='3点が1つの直線上だと、<b style="color:#e8833a">オレンジの軸</b>が1本残り、板は回ってしまう。';}
   else {vMain.innerHTML='ピタッと1つに固定！ → <u>決まる</u>';
-    vSub.innerHTML='一直線上にない3点を通る平面は、回転の軸が無くなり、<b>ただ1つに決まる</b>。';}
+    vSub.innerHTML='1つの直線上にない3点を通る平面は、回転の軸が無くなり、<b>ただ1つに決まる</b>。';}
 }
 
 // 板の向きを更新
@@ -731,7 +731,7 @@ function updatePlane(){
   clearAxes();
 
   if(mode==='3n'){
-    // 一直線上にない3点 → 平面は一意。tilt/spinは無効。回転の軸は無い。
+    // 1つの直線上にない3点 → 平面は一意。tilt/spinは無効。回転の軸は無い。
     const a=points[0].position, b=points[1].position, c=points[2].position;
     const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)).normalize();
     const center=new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1/3);
@@ -751,7 +751,7 @@ function updatePlane(){
     addAxisRod(p,spinAxis,3.0,AXIS_COL);
     disableSlider(sTilt,false); disableSlider(sSpin,false);
   } else {
-    // 2点 or 3点一直線 → 直線がただ1本の「回転の軸」。tiltのみ有効。
+    // 2点 or 3点が1つの直線上 → 直線がただ1本の「回転の軸」。tiltのみ有効。
     const a=points[0].position;
     const b=points[(mode==='2')?1:2].position;
     const axis=new THREE.Vector3().subVectors(b,a).normalize();
