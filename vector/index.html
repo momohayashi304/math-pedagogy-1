@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>自転する星と内積 ― 磁極を見る角度θシミュレータ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --blue:#2b7de9; --blue-d:#1c5fbf; --ink:#2c3e50; --line:#dfe4ea;
+    --orange:#e8833a; --green:#27ae60; --bg:#eef2f5;
+    /* 角の色（設計書の約束） */
+    --ci:#2b7de9; --cb:#c0473a; --cp:#3a9a5f; --ct:#e0863a; --axis:#8a6a3a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink); margin:0; padding:14px;
+  }
+  .container{max-width:1080px; margin:0 auto; background:#fff; border-radius:12px;
+    box-shadow:0 6px 18px rgba(0,0,0,.09); padding:18px 20px 24px;}
+  .head{text-align:center; margin-bottom:6px;}
+  .head h1{font-size:1.35rem; color:var(--ink); margin:2px 0;}
+  .head .sub{font-size:.8rem; color:#7f8c8d;}
+  /* タブ */
+  .tabs{display:flex; justify-content:center; gap:6px; margin:12px 0 16px; border-bottom:2px solid var(--line);}
+  .tab-btn{background:none; border:none; padding:10px 18px; font-size:1rem; font-weight:bold;
+    color:#8a99a8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:.2s;}
+  .tab-btn:hover{color:var(--blue);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .desc{background:#f4f8fe; border-left:4px solid var(--blue); padding:10px 12px;
+    font-size:.9rem; line-height:1.6; margin-bottom:14px; border-radius:0 6px 6px 0; text-wrap:pretty;}
+  .desc b{color:var(--blue-d);}
+  .grid{display:flex; flex-wrap:wrap; gap:18px;}
+  .col-ctrl{flex:1; min-width:290px;}
+  .col-view{flex:1.5; min-width:340px; display:flex; flex-direction:column; gap:12px;}
+  /* スライダー */
+  .slider-row{margin-bottom:11px;}
+  .slider-row label{display:flex; justify-content:space-between; gap:8px; font-size:.9rem; font-weight:bold; margin-bottom:3px;}
+  .slider-row label .val{color:var(--blue-d); font-family:"Courier New",monospace; white-space:nowrap;}
+  input[type=range]{width:100%; accent-color:var(--blue); height:22px;}
+  input.r-i{accent-color:var(--ci);} input.r-b{accent-color:var(--cb);} input.r-p{accent-color:var(--cp);}
+  .slider-row label .val.vi{color:var(--ci);} .slider-row label .val.vb{color:var(--cb);} .slider-row label .val.vp{color:var(--cp);}
+  .hint{font-size:.78rem; color:#8a99a8; margin-top:2px; line-height:1.5;}
+  /* 角の文字 */
+  .ci{color:var(--ci); font-style:italic;} .cb{color:var(--cb);} .cp{color:var(--cp);} .ct{color:var(--ct);}
+  .vec{position:relative; display:inline-block; font-style:italic; text-indent:0;}
+  .vec::after{content:"→"; position:absolute; left:50%; top:-.62em; transform:translateX(-50%) scaleX(.9);
+    font-size:.62em; font-style:normal;}
+  /* ビュー枠 */
+  .view-box{position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#cfe3f2;}
+  .view-box.graph{background:#fff;}
+  .view-title{position:absolute; top:8px; left:10px; z-index:5; background:rgba(255,255,255,.85);
+    padding:2px 8px; border-radius:4px; font-size:.8rem; font-weight:bold; color:var(--ink);}
+  canvas{display:block; width:100%;}
+  #view3d{height:380px; touch-action:none; cursor:grab;}
+  #viewObs{height:220px;}
+  #graph{height:360px;}
+  .lbl-layer{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
+  .l3{position:absolute; font-size:.8rem; font-weight:bold; white-space:nowrap; line-height:1.3;
+    text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff,0 0 1px #fff;}
+  
+  .obs-tag{position:absolute; right:10px; bottom:8px; z-index:5; background:rgba(255,255,255,.85);
+    padding:2px 8px; border-radius:4px; font-size:.8rem; font-weight:bold; color:var(--cb);}
+  .nogl{display:flex; align-items:center; justify-content:center; height:100%; padding:20px; text-align:center;
+    font-size:.85rem; color:#5d6d7e;}
+  /* 計算表示（match-box と同じ見た目） */
+  .match-box{background:#f8fafb; border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-top:4px;}
+  .calc{font-family:Menlo,Consolas,"Courier New","Hiragino Kaku Gothic ProN","Hiragino Sans",monospace;
+    font-size:.84rem; line-height:1.95; margin-top:12px;}
+  .crow{padding-left:1.6em; text-indent:-1.6em;}
+  .crow .seg{display:inline-block; text-indent:0; white-space:nowrap;}
+  .crow .ex{display:inline-block; text-indent:0; white-space:nowrap; color:#b35f1c; font-weight:bold;}
+  .crow.th{font-size:1.08rem; font-weight:bold;}
+  .crow.fm{font-size:.78rem; color:#5d6d7e; border-top:1px dashed var(--line); margin-top:4px; padding-top:3px;}
+  .card2 .line{font-size:.92rem; line-height:1.75;}
+  .card2 .line b{color:#b35f1c;}
+  .nw{white-space:nowrap;}                          /* 式の途中で折り返さない（狭い画面用） */
+  #panel-2 .desc b:not(:first-of-type){white-space:nowrap;}
+  /* ボタン */
+  .btn-row{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  button.act{flex:1; min-width:110px; padding:9px; border:none; border-radius:7px; font-size:.9rem;
+    font-weight:bold; cursor:pointer; color:#fff; background:var(--blue); transition:.15s;}
+  button.act:hover{background:var(--blue-d);}
+  button.ghost{background:#95a5a6;}
+  button.ghost:hover{background:#7f8c8d;}
+  button.orbit{background:#8e44ad; width:100%; margin-top:12px;}
+  button.orbit:hover{background:#763a91;}
+  button.orbit.on{background:#c0392b;}
+  .btn-row button.orbit{width:auto; margin-top:0; flex:1.6;}
+  .mini-row{display:flex; gap:6px; margin:0 0 10px;}
+  .mini-row button{flex:1; min-width:0; padding:6px 2px; border:2px solid var(--line); background:#fff; border-radius:8px;
+    font-size:.85rem; font-weight:bold; color:var(--ink); cursor:pointer; transition:.15s; white-space:nowrap;}
+  .mini-row button:hover{border-color:var(--cp);}
+  .mini-row button.active{border-color:var(--cp); background:#eaf6ee; color:#2d7a4b;}
+  #psi-btns2{margin:12px 0 0;}                      /* タブ②：ψ のボタン（タブ①と同じ見た目）と、その下の行に ▶ 自転 */
+  #play2{margin-top:8px;}
+  .ctl-row{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin:10px 0; font-size:.9rem;}
+  .ctl-lab{font-weight:bold; min-width:6.2em;}
+  select.star-sel{flex:1; min-width:170px; padding:6px 8px; border:1px solid #cbd4dd; border-radius:6px;
+    font-size:.9rem; background:#fff; color:var(--ink);}
+  .opts{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; flex:1; min-width:0;}
+  label.radio{display:inline-flex; align-items:center; gap:4px; cursor:pointer; white-space:nowrap;}
+  label.check{display:flex; align-items:center; gap:6px; font-size:.9rem; font-weight:bold; margin:8px 0; cursor:pointer;}
+  input[type=radio],input[type=checkbox]{accent-color:var(--blue); width:16px; height:16px; margin:0;}
+  /* 判定 */
+  .verdict{padding:12px 14px; border-radius:8px; font-size:1rem; font-weight:bold; margin-top:10px; line-height:1.5; text-wrap:pretty;}
+  .verdict.no{background:#fdecea; color:#c0392b; border:1px solid #f5b7b1;}
+  .verdict.yes{background:#eafaf1; color:#1e8449; border:1px solid #a9dfbf;}
+  .verdict.mid{background:#fff8e1; color:#a67c00; border:1px solid #f1d58a;}
+  .small{font-size:.82rem; font-weight:normal; color:#5d6d7e;}
+  /* 先生用 */
+  details.teacher{margin-top:14px; border:1px solid var(--line); border-radius:8px; padding:8px 12px; background:#fbfbf8; font-size:.85rem; line-height:1.6;}
+  details.teacher summary{cursor:pointer; font-weight:bold; color:#5d6d7e;}
+  .lit-btns{display:flex; flex-direction:column; gap:6px; margin:8px 0;}
+  .lit-btns button{text-align:left; padding:7px 10px; border:1px solid #cbd4dd; border-radius:6px; background:#fff;
+    cursor:pointer; font-size:.85rem; color:var(--ink);}
+  .lit-btns button:hover{border-color:var(--blue); background:#f4f8fe;}
+  .caution{font-size:.8rem; color:#a0522d;}
+  .footer{text-align:center; font-size:.72rem; color:#aab3bd; margin-top:16px; line-height:1.6;}
+  /* タブレット縦・スマホ幅：操作と図を縦に並べる */
+  @media (max-width:860px){
+    .col-ctrl,.col-view{min-width:0; flex-basis:100%;}
+  }
+  /* スマホ幅 */
+  @media (max-width:640px){
+    body{padding:6px;}
+    .container{padding:12px 10px 18px; border-radius:10px;}
+    .head h1{font-size:1.15rem;}
+    .tabs{gap:2px;}
+    .tab-btn{padding:8px 8px; font-size:.92rem;}
+    .col-ctrl,.col-view{min-width:0; flex-basis:100%;}
+    #view3d{height:340px;}
+    .calc{font-size:.8rem;}
+    .verdict{font-size:.92rem;}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="head">
+    <h1>自転する星の磁極は何度に見える？</h1>
+    <div class="sub">高校2年 数学C　東京書籍「改訂版 数学Ｃ Advanced」第1章 ベクトル 第3節 空間におけるベクトル ／ 空間ベクトルの内積で θ を求める</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="1">① 自転する星と視線</button>
+    <button class="tab-btn" data-tab="2">② θ のグラフ</button>
+  </div>
+
+  <!-- ============ タブ① 自転する星と視線 ============ -->
+  <div class="panel active" id="panel-1">
+    <div class="desc">
+      竹串（<b>自転軸</b>）のまわりを、<b>磁極</b>（まち針の根元の点）が回ります。スライダーで <b style="color:#2b7de9">i</b>、<b style="color:#c0473a">β</b>、<b style="color:#3a9a5f">ψ</b> を動かすと、星の中心から出る視線 <span class="vec">n</span> と磁極 <span class="vec">m</span> の <b>成分</b>、<b>内積</b>、<b style="color:#e0863a">θ</b> が変わります。「▶ 自転」で星を回してみよう。（3D の図はドラッグで回転）
+    </div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="slider-row">
+          <label><span><span class="ci">i</span>（自転軸と視線のなす角）</span><span class="val vi" id="v-i1">45°</span></label>
+          <input type="range" class="r-i" id="s-i1" min="0" max="90" step="1" value="45">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="cb">β</span>（自転軸と磁極の軸のなす角）</span><span class="val vb" id="v-b1">45°</span></label>
+          <input type="range" class="r-b" id="s-b1" min="0" max="90" step="1" value="45">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="cp">ψ</span>（自転した角）</span><span class="val vp" id="v-p1">ψ＝0°</span></label>
+          <input type="range" class="r-p" id="s-p1" min="0" max="360" step="1" value="0">
+        </div>
+        <div class="mini-row psi-btns" id="psi-btns">
+          <button data-q="0">ψ＝0°</button>
+          <button data-q="1">ψ＝90°</button>
+          <button data-q="2">ψ＝180°</button>
+          <button data-q="3">ψ＝270°</button>
+        </div>
+        <div class="ctl-row">
+          <label class="ctl-lab" for="sel1">星をえらぶ</label>
+          <select class="star-sel" id="sel1"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="ans"> 答え合わせ（厳密値を表示）</label>
+        <div class="btn-row">
+          <button class="act orbit" id="play1">▶ 自転（アニメーション）</button>
+          <button class="act ghost" id="reset1">リセット</button>
+        </div>
+        <div class="match-box calc" id="calc"></div>
+        <div class="verdict yes" id="verdict1"></div>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">🌐 空間のようす（ドラッグで回転）</div>
+          <div id="view3d"></div>
+          <div class="lbl-layer" id="lbl3d"></div>
+        </div>
+        <div class="view-box">
+          <div class="view-title">👁 視線の方向から見た星（観測者の見え方）</div>
+          <div id="viewObs"></div>
+          <div class="obs-tag">磁極は手前？向こう？</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ タブ② θ のグラフ ============ -->
+  <div class="panel" id="panel-2">
+    <div class="desc">
+      一般式 <b>cosθ ＝ cos i cosβ ＋ sin i sinβ cosψ</b> のグラフです。<b style="color:#2b7de9">i</b> と <b style="color:#c0473a">β</b> を変えると、θ の <b>最小 |i−β|（ψ＝0°）</b>、<b>最大 i＋β（ψ＝180°）</b> と、θ が <b>90° を超える時間</b> が変わります。ψ のボタンで、授業で計算した点がグラフの上にあることを確かめよう。
+    </div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="slider-row">
+          <label><span><span class="ci">i</span>（自転軸と視線のなす角）</span><span class="val vi" id="v-i2">45°</span></label>
+          <input type="range" class="r-i" id="s-i2" min="0" max="90" step="1" value="45">
+        </div>
+        <div class="slider-row">
+          <label><span><span class="cb">β</span>（自転軸と磁極の軸のなす角）</span><span class="val vb" id="v-b2">45°</span></label>
+          <input type="range" class="r-b" id="s-b2" min="0" max="90" step="1" value="45">
+        </div>
+        <div class="ctl-row">
+          <span class="ctl-lab">縦軸</span>
+          <span class="opts"><label class="radio"><input type="radio" name="yax" value="theta" checked> θ（度）</label>
+          <label class="radio"><input type="radio" name="yax" value="cos"> cosθ</label></span>
+        </div>
+        <div class="ctl-row" style="margin-bottom:2px;">
+          <span class="ctl-lab">横軸</span>
+          <span class="opts"><label class="radio"><input type="radio" name="xax" value="psi" checked> ψ（0°〜360°）</label>
+          <label class="radio"><input type="radio" name="xax" value="time"> 時間（1回転＝約185.7分）</label></span>
+        </div>
+        <div class="hint">研究の星 AM Her（白色矮星がもう1つの星とまわり合う連星。白色矮星は約3.09時間で1回自転）の周期 0.128927103日（Schwope et al. 2020）で時間に直した目安。i と β はこの星の値ではありません。</div>
+        <div class="ctl-row">
+          <label class="ctl-lab" for="sel2">星をえらぶ</label>
+          <select class="star-sel" id="sel2"></select>
+        </div>
+        <div class="mini-row psi-btns" id="psi-btns2">
+          <button data-q="0">ψ＝0°</button>
+          <button data-q="1">ψ＝90°</button>
+          <button data-q="2">ψ＝180°</button>
+          <button data-q="3">ψ＝270°</button>
+        </div>
+        <button class="act orbit" id="play2">▶ 自転</button>
+
+        <details class="teacher" id="teacher">
+          <summary>先生用：文献の i と β（研究によって値がちがう）</summary>
+          <div class="small" style="margin-top:6px;">AM Her の i と β は、測る方法や仮定によって文献ごとに大きく違います（下は原典で確かめた例。授業では仮の値の星（i＝β＝45° など）で考えます）。</div>
+          <div class="lit-btns" id="lit-btns"></div>
+          <div class="caution">この単純なモデルの ψ＝0° は、文献の位相0（伴星の内合）とは定義が違います。観測の明るさの変化と直接対応させないでください。</div>
+        </details>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box graph">
+          <div class="view-title">📈 θ のグラフ</div>
+          <canvas id="graph"></canvas>
+        </div>
+        <div class="match-box card2" id="card2"></div>
+        <div class="verdict" id="verdict2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">i＝自転軸と視線のなす角、β＝自転軸と磁極の軸のなす角、ψ＝自転した角。<span class="vec">n</span> と <span class="vec">m</span> はどちらも星の中心から出るベクトル。いちばん単純なモデルです。｜作成：林 桃萌（数学科指導法1 模擬授業）</div>
+</div>
+
+<script>
+/* ============================================================
+   データ（_生成スクリプト/シミュレータ_生成.py が data/ から埋め込む。手で書き換えない）
+============================================================ */
+const EXACT_DOT={"30_30_0": "1", "30_30_180": "1/2", "30_30_270": "3/4", "30_30_90": "3/4", "30_45_0": "(√6+√2)/4", "30_45_180": "(√6−√2)/4", "30_45_270": "√6/4", "30_45_90": "√6/4", "30_60_0": "√3/2", "30_60_180": "0", "30_60_270": "√3/4", "30_60_90": "√3/4", "45_30_0": "(√6+√2)/4", "45_30_180": "(√6−√2)/4", "45_30_270": "√6/4", "45_30_90": "√6/4", "45_45_0": "1", "45_45_135": "(2−√2)/4", "45_45_180": "0", "45_45_225": "(2−√2)/4", "45_45_270": "1/2", "45_45_315": "(2+√2)/4", "45_45_45": "(2+√2)/4", "45_45_90": "1/2", "45_60_0": "(√6+√2)/4", "45_60_180": "−(√6−√2)/4", "45_60_270": "√2/4", "45_60_90": "√2/4", "60_30_0": "√3/2", "60_30_180": "0", "60_30_270": "√3/4", "60_30_90": "√3/4", "60_45_0": "(√6+√2)/4", "60_45_180": "−(√6−√2)/4", "60_45_270": "√2/4", "60_45_90": "√2/4", "60_60_0": "1", "60_60_180": "−1/2", "60_60_270": "1/4", "60_60_90": "1/4"};
+const EXACT_M={"0": "(√2/2, 0, √2/2)", "45": "(1/2, 1/2, √2/2)", "90": "(0, √2/2, √2/2)", "135": "(−1/2, 1/2, √2/2)", "180": "(−√2/2, 0, √2/2)", "225": "(−1/2, −1/2, √2/2)", "270": "(0, −√2/2, √2/2)", "315": "(1/2, −1/2, √2/2)", "360": "(√2/2, 0, √2/2)"};
+const LIT=[{"key": "sirk_howell1998", "i": 37, "beta": 68, "label": "i＝37°, β＝68°（Sirk & Howell 1998）", "source": "Sirk & Howell 1998, ApJ 506, 173 (astro-ph/9805182) Table 3 'Present Work'"}, {"key": "gaensicke2001_a", "i": 50, "beta": 55, "label": "i＝50°, β＝55°（Gänsicke et al. 2001 のモデルの組）", "source": "Gänsicke et al. 2001, A&A 372, 557 がモデルに用いた組（測定値ではない）"}, {"key": "gaensicke2001_b", "i": 35, "beta": 70, "label": "i＝35°, β＝70°（Gänsicke et al. 2001 のモデルの組）", "source": "Gänsicke et al. 2001, A&A 372, 557 がモデルに用いた組（測定値ではない）"}, {"key": "campbell2008", "i": 50, "beta": 85, "label": "i＝50°, β＝85°（Campbell et al. 2008）", "source": "Campbell et al. 2008, ApJ (arXiv:0807.1143) 'consistent with i=50° and β=85°'"}];
+const P_MIN=185.655;   // AM Her の周期 0.128927103 日（自転と公転は同期）Schwope et al. 2020, A&A 642, A134
+
+/* ============================================================
+   共通
+============================================================ */
+const DEG=Math.PI/180;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const el=id=>document.getElementById(id);
+const SPIN_SEC=8;                 // 1回転の秒数（アニメーション）
+const COL={i:'#2b7de9', b:'#c0473a', p:'#3a9a5f', t:'#e0863a', tText:'#c2651f', axis:'#8a6a3a', curve:'#17738a'};
+const PRESETS=[
+  {key:'p45_45', label:'問題1の星（i＝β＝45°）',       i:45, b:45},
+  {key:'p45_60', label:'問題2の星（i＝45°, β＝60°）',  i:45, b:60},
+  {key:'p60_60', label:'i＝β＝60°',                    i:60, b:60},
+  {key:'p30_60', label:'i＝30°, β＝60°',               i:30, b:60},
+];
+const INIT={i:45, b:45, phi:0};
+// 状態（内部では自転の進み S.phi を 0〜1 で持ち、ψ＝360×S.phi（度）で表示する。表示は度だけ）
+const S={tab:1, i:45, b:45, phi:0, mode:'deg', ans:false, y:'theta', x:'psi', play:false};
+
+/* ---- 数式 ---- */
+function model(i,b,phi){
+  const ir=i*DEG, br=b*DEG, a=2*Math.PI*phi;
+  const n=[Math.sin(ir), 0, Math.cos(ir)];
+  const m=[Math.sin(br)*Math.cos(a), Math.sin(br)*Math.sin(a), Math.cos(br)];
+  const c=n[0]*m[0]+n[1]*m[1]+n[2]*m[2];
+  const th=Math.acos(clamp(c,-1,1))/DEG;
+  return {n,m,c,th};
+}
+// θ>90° の割合（閉じた式）：i＋β＞90° のとき 1−arccos(−cot i cot β)/180°、それ以外は 0
+function fracOver90(i,b){
+  if(i+b<=90) return 0;
+  const ir=i*DEG, br=b*DEG;
+  const x=-(Math.cos(ir)*Math.cos(br))/(Math.sin(ir)*Math.sin(br));
+  return 1-Math.acos(clamp(x,-1,1))/Math.PI;
+}
+const isConst=()=>S.i<0.5||S.b<0.5;
+const constVal=()=>S.i<0.5?S.b:S.i;
+
+/* ---- 表示の書式 ---- */
+const MINUS='−';
+function fmtNum(v,d){ let s=v.toFixed(d); if(/^-0(\.0*)?$/.test(s)) s=s.slice(1); return s.replace('-',MINUS); }
+function sgn3(v){ const s=fmtNum(v,3); return s[0]===MINUS? s : ' '+s; }
+function fac3(v){ const s=fmtNum(v,3); return s[0]===MINUS? '('+s+')' : s; }
+function fmtDeg(v){ return Math.abs(v-Math.round(v))<1e-9? String(Math.round(v)) : fmtNum(v,1); }
+function psiDegText(){ const psi=S.phi*360; return S.play? String(Math.round(psi)) : fmtDeg(psi); }
+function psiText(){ return `ψ＝${psiDegText()}°`; }   // スライダーの値表示・グラフの現在位置
+
+/* ---- 厳密値 ---- */
+function intOrNull(v){ const r=Math.round(v); return Math.abs(v-r)<1e-9? r : null; }
+function psiIntOrNull(phi){ const psi=phi*360, r=Math.round(psi); return Math.abs(psi-r)<1e-6? r : null; }
+function exactDot(i,b,phi){
+  const ii=intOrNull(i), bb=intOrNull(b), p=psiIntOrNull(phi);
+  if(ii===null||bb===null||p===null) return null;
+  const key=`${ii}_${bb}_${((p%360)+360)%360}`;
+  return Object.prototype.hasOwnProperty.call(EXACT_DOT,key)? EXACT_DOT[key] : null;
+}
+function exactM(i,b,phi){
+  const ii=intOrNull(i), bb=intOrNull(b), p=psiIntOrNull(phi);
+  if(ii!==45||bb!==45||p===null) return null;
+  return Object.prototype.hasOwnProperty.call(EXACT_M,String(p))? EXACT_M[String(p)] : null;
+}
+
+/* ============================================================
+   URL パラメータ：?tab=1|2 ?i=45&b=60 ?psi=90 ?ans=1 ?y=cos ?x=time ?play=1
+============================================================ */
+(function readQuery(){
+  const Q=new URLSearchParams(location.search);
+  const num=(k)=>{ const v=parseFloat(Q.get(k)); return isFinite(v)? v : null; };
+  if(Q.get('tab')==='2') S.tab=2;
+  if(num('i')!==null) S.i=clamp(num('i'),0,90);
+  if(num('b')!==null) S.b=clamp(num('b'),0,90);
+  if(num('psi')!==null) S.phi=clamp(num('psi'),0,360)/360;
+  if(Q.get('ans')==='1') S.ans=true;
+  if(Q.get('y')==='cos') S.y='cos';
+  if(Q.get('x')==='time') S.x='time';
+  if(Q.get('play')==='1') S.play=true;
+})();
+
+/* ============================================================
+   操作部品
+============================================================ */
+['sel1','sel2'].forEach(id=>{
+  const s=el(id);
+  PRESETS.forEach(p=>{ const o=document.createElement('option'); o.value=p.key; o.textContent=p.label; s.appendChild(o); });
+  const o=document.createElement('option'); o.value='free'; o.textContent='自由に動かす'; s.appendChild(o);
+  s.addEventListener('change',()=>{
+    const p=PRESETS.find(q=>q.key===s.value);
+    if(p){ S.i=p.i; S.b=p.b; }
+    dirty=true;
+  });
+});
+LIT.forEach(c=>{
+  const bt=document.createElement('button');
+  bt.textContent=c.label; bt.title=c.source;
+  bt.addEventListener('click',()=>{ S.i=c.i; S.b=c.beta; dirty=true; });
+  el('lit-btns').appendChild(bt);
+});
+['1','2'].forEach(k=>{
+  el('s-i'+k).addEventListener('input',e=>{ S.i=+e.target.value; dirty=true; });
+  el('s-b'+k).addEventListener('input',e=>{ S.b=+e.target.value; dirty=true; });
+});
+el('s-p1').addEventListener('input',e=>{
+  S.play=false; S.phi=clamp(+e.target.value,0,360)/360; dirty=true;
+});
+// ψ のボタン（タブ①の #psi-btns とタブ②の #psi-btns2。状態は共有）
+document.querySelectorAll('.psi-btns button').forEach(bt=>{
+  bt.addEventListener('click',()=>{ S.play=false; S.phi=(+bt.dataset.q)/4; dirty=true; });
+});
+document.querySelectorAll('input[name=yax]').forEach(r=>r.addEventListener('change',()=>{ if(r.checked){ S.y=r.value; dirty=true; } }));
+document.querySelectorAll('input[name=xax]').forEach(r=>r.addEventListener('change',()=>{ if(r.checked){ S.x=r.value; dirty=true; } }));
+el('ans').addEventListener('change',e=>{ S.ans=e.target.checked; dirty=true; });
+['play1','play2'].forEach(id=>el(id).addEventListener('click',()=>{ S.play=!S.play; dirty=true; }));
+el('reset1').addEventListener('click',()=>{
+  Object.assign(S,{i:INIT.i, b:INIT.b, phi:INIT.phi, play:false, ans:false});
+  resetCam(); dirty=true;
+});
+document.querySelectorAll('.tab-btn').forEach(btn=>btn.addEventListener('click',()=>setTab(+btn.dataset.tab)));
+function setTab(t){
+  S.tab=t;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',+b.dataset.tab===t));
+  el('panel-1').classList.toggle('active',t===1);
+  el('panel-2').classList.toggle('active',t===2);
+  onResize(); dirty=true;
+}
+
+function syncControls(){
+  ['1','2'].forEach(k=>{
+    if(+el('s-i'+k).value!==S.i) el('s-i'+k).value=S.i;
+    if(+el('s-b'+k).value!==S.b) el('s-b'+k).value=S.b;
+    el('v-i'+k).textContent=fmtDeg(S.i)+'°';
+    el('v-b'+k).textContent=fmtDeg(S.b)+'°';
+  });
+  el('s-p1').value=S.phi*360;
+  el('v-p1').textContent=psiText();
+  document.querySelectorAll('.psi-btns button').forEach(bt=>bt.classList.toggle('active',!S.play&&Math.abs(S.phi-(+bt.dataset.q)/4)<1e-9));
+  const pk=(PRESETS.find(p=>Math.abs(p.i-S.i)<1e-9&&Math.abs(p.b-S.b)<1e-9)||{key:'free'}).key;
+  el('sel1').value=pk; el('sel2').value=pk;
+  document.querySelectorAll('input[name=yax]').forEach(r=>r.checked=(r.value===S.y));
+  document.querySelectorAll('input[name=xax]').forEach(r=>r.checked=(r.value===S.x));
+  el('ans').checked=S.ans;
+  el('play1').classList.toggle('on',S.play); el('play2').classList.toggle('on',S.play);
+  el('play1').textContent=S.play?'■ とめる':'▶ 自転（アニメーション）';
+  el('play2').textContent=S.play?'■ とめる':'▶ 自転';
+}
+
+/* ============================================================
+   タブ①：計算表示と判定
+============================================================ */
+const VN='<span class="vec">n</span>', VM='<span class="vec">m</span>';
+const Ii='<span class="ci">i</span>', Bb='<span class="cb">β</span>';
+function renderCalc(){
+  const {n,m,c,th}=model(S.i,S.b,S.phi);
+  const P='<span class="cp">ψ</span>';
+  let dEx='', mEx='';
+  if(S.ans){
+    const e=exactDot(S.i,S.b,S.phi); if(e!==null) dEx=`<span class="ex">（＝${e}）</span>`;
+    const em=exactM(S.i,S.b,S.phi); if(em!==null) mEx=`<span class="ex">（＝${em}）</span>`;
+  }
+  el('calc').innerHTML=
+    `<div class="crow"><span class="seg">${VN} ＝ (sin ${Ii}, 0, cos ${Ii})</span> <span class="seg">＝ (${sgn3(n[0])},${sgn3(n[1])},${sgn3(n[2])})</span></div>`+
+    `<div class="crow"><span class="seg">${VM} ＝ (sin${Bb} cos${P}, sin${Bb} sin${P}, cos${Bb})</span> <span class="seg">＝ (${sgn3(m[0])},${sgn3(m[1])},${sgn3(m[2])})</span> ${mEx}</div>`+
+    `<div class="crow"><span class="seg">${VN}・${VM} ＝ ${fac3(n[0])}×${fac3(m[0])}</span> <span class="seg">＋ ${fac3(n[1])}×${fac3(m[1])}</span> <span class="seg">＋ ${fac3(n[2])}×${fac3(m[2])}</span> <span class="seg">＝ ${fmtNum(c,3)}</span> ${dEx}</div>`+
+    `<div class="crow th"><span class="seg"><span class="ct">θ</span> ＝ <span class="ct">${fmtNum(th,1)}°</span></span></div>`+
+    `<div class="crow fm"><span class="seg">cos<span class="ct">θ</span> ＝ cos ${Ii} cos${Bb} ＋ sin ${Ii} sin${Bb} cos${P}</span> <span class="seg">＝ ${fmtNum(c,3)}</span></div>`;
+  const v=el('verdict1');
+  if(isConst()){
+    v.className='verdict mid'; v.textContent=`θ は一定（＝${fmtDeg(constVal())}°）。自転しても変わらない`;
+  }else if(c>0.0005){
+    v.className='verdict yes'; v.textContent='θ＜90°：磁極は星の手前側（視線の側）にある';
+  }else if(c>=-0.0005){
+    v.className='verdict mid'; v.textContent='θ＝90°：磁極はちょうど真横（境目）';
+  }else{
+    v.className='verdict no'; v.innerHTML=`θ＞90°：${VN}・${VM}＜0。磁極は星の向こう側に回っている`;
+  }
+}
+
+/* ============================================================
+   タブ②：数値カードと判定
+============================================================ */
+function renderCard2(){
+  const q0='ψ＝0°', q1='ψ＝180°';
+  const Pp='<span class="cp">ψ</span>', Tt='<span class="ct">θ</span>';
+  // 先頭の2行：① 一般式　② ψ＝90°、270° の値（i または β が 0.5° 未満のときは出さない）
+  let h=`<div class="line">一般式：<span class="nw">cos${Tt} ＝ cos ${Ii} cos${Bb}</span> <span class="nw">＋ sin ${Ii} sin${Bb} cos${Pp}</span></div>`;
+  if(!isConst()){
+    const c90=model(S.i,S.b,0.25).c;
+    h+=`<div class="line"><span class="nw">ψ＝90°、270°：</span><span class="nw">cos${Tt} ＝ cos ${Ii} cos${Bb} ＝ <b>${fmtNum(c90,3)}</b></span><span class="nw">（θ＝${fmtNum(Math.acos(clamp(c90,-1,1))/DEG,1)}°）</span></div>`;
+  }
+  if(isConst()){
+    h+=`<div class="line">θ は一定（＝${fmtDeg(constVal())}°）。最小・最大になる ψ は決まらない</div>`;
+  }else{
+    h+=`<div class="line">θ の最小（${q0}）：|${Ii}−${Bb}| ＝ |${fmtDeg(S.i)}°−${fmtDeg(S.b)}°| ＝ <b>${fmtDeg(Math.abs(S.i-S.b))}°</b></div>`;
+    h+=`<div class="line">θ の最大（${q1}）：${Ii}＋${Bb} ＝ ${fmtDeg(S.i)}°＋${fmtDeg(S.b)}° ＝ <b>${fmtDeg(S.i+S.b)}°</b></div>`;
+  }
+  const fr=fracOver90(S.i,S.b);
+  h+=`<div class="line">θ が 90° を超える時間：1回転のうち <b>${(fr*100).toFixed(1)}%</b>${S.x==='time'?`（約 ${Math.round(fr*P_MIN)} 分）`:''}</div>`;
+  el('card2').innerHTML=h;
+  const v=el('verdict2'), s=S.i+S.b, sT=fmtDeg(s);
+  if(s>90+1e-9){ v.className='verdict no'; v.textContent=`i＋β＝${sT}°＞90°：θ が 90° を超える時間帯がある（磁極が星の向こう側に回る）`; }
+  else if(Math.abs(s-90)<=1e-9){ v.className='verdict mid'; v.textContent='i＋β＝90°：θ の最大がちょうど 90°。超える時間帯はない'; }
+  else { v.className='verdict yes'; v.textContent=`i＋β＝${sT}°＜90°：θ は 90° を超えない`; }
+}
+
+/* ============================================================
+   タブ②：グラフ（2D canvas）
+============================================================ */
+const FONT='"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",sans-serif';
+function drawGraph(){
+  const cv=el('graph'); const w=cv.clientWidth; if(!w) return;
+  const H=360, dpr=Math.min(window.devicePixelRatio||1,2);
+  const W=Math.round(w*dpr), HH=Math.round(H*dpr);
+  if(cv.width!==W) cv.width=W;
+  if(cv.height!==HH) cv.height=HH;
+  const g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle='#fff'; g.fillRect(0,0,w,H);
+  const L=60, R=18, T=54, B=50, pw=w-L-R, ph=H-T-B;
+  const isCos=S.y==='cos', isTime=S.x==='time';
+  const X=f=>L+f*pw;
+  const val=th=>isCos? Math.cos(th*DEG) : th;
+  const Y=v=>isCos? T+(1-v)/2*ph : T+(180-v)/180*ph;
+  const line=(x1,y1,x2,y2)=>{ g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); };
+  // 目盛と格子
+  g.strokeStyle='#e6ebf0'; g.lineWidth=1; g.fillStyle='#5d6d7e'; g.font=`12px ${FONT}`;
+  const yt=isCos? [-1,-0.5,0,0.5,1] : [0,30,60,90,120,150,180];
+  g.textAlign='right'; g.textBaseline='middle';
+  yt.forEach(v=>{ line(L,Y(v),L+pw,Y(v)); g.fillText(isCos? String(v).replace('-',MINUS) : v+'°', L-7, Y(v)); });
+  const xl= isTime? ['0','46','93','139','186'] : ['0°','90°','180°','270°','360°'];
+  g.textAlign='center'; g.textBaseline='top';
+  [0,0.25,0.5,0.75,1].forEach((f,k)=>{ line(X(f),T,X(f),T+ph); g.fillText(xl[k],X(f),T+ph+6); });
+  g.strokeStyle='#b8c2cc'; g.strokeRect(L,T,pw,ph);
+  g.fillStyle=COL.ink||'#2c3e50'; g.font=`bold 13px ${FONT}`;
+  g.fillText(isTime? '時間（分）' : '自転した角 ψ', L+pw/2, T+ph+26);
+  g.textAlign='center'; g.textBaseline='middle'; g.fillStyle=COL.tText;   // 縦軸の名前は横書きのまま（θ を寝かせない）
+  g.fillText(isCos? 'cosθ' : 'θ', 17, T+ph/2+ (isCos? ph/8 : ph/12));
+  // 曲線のサンプル（361点）
+  const N=360, ys=[];
+  for(let k=0;k<=N;k++) ys.push(Y(val(model(S.i,S.b,k/N).th)));
+  const base=isCos? 0 : 90, yb=Y(base);
+  // θ>90° の部分を塗る（曲線と基準線の間）
+  g.save(); g.beginPath();
+  if(isCos) g.rect(L,yb,pw,T+ph-yb); else g.rect(L,T,pw,yb-T);
+  g.clip();
+  g.beginPath(); g.moveTo(X(0),yb);
+  for(let k=0;k<=N;k++) g.lineTo(X(k/N),ys[k]);
+  g.lineTo(X(1),yb); g.closePath(); g.fillStyle='rgba(245,183,177,0.6)'; g.fill();
+  g.restore();
+  // 90° の破線
+  g.setLineDash([6,5]); g.strokeStyle='#7f8c8d'; g.lineWidth=1.5; line(L,yb,L+pw,yb); g.setLineDash([]);
+  g.font=`bold 12px ${FONT}`; g.textAlign='right'; g.textBaseline='bottom'; g.fillStyle='#6c7a86';
+  g.fillText(isCos? 'θ＝90°' : '90°', L+pw-4, yb-3);
+  // 曲線
+  g.strokeStyle=COL.curve; g.lineWidth=3; g.lineJoin='round'; g.beginPath();
+  for(let k=0;k<=N;k++){ k? g.lineTo(X(k/N),ys[k]) : g.moveTo(X(0),ys[0]); }
+  g.stroke();
+  // 点とラベル
+  const dot=(x,y,r,c)=>{ g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fillStyle=c; g.fill(); g.strokeStyle='#fff'; g.lineWidth=2; g.stroke(); };
+  const curveY=px=>ys[Math.round(clamp((px-L)/pw,0,1)*N)];
+  function placeLabel(text,px,py,anchor,color){
+    g.font=`bold 13px ${FONT}`;
+    const tw=g.measureText(text).width, th=16;
+    let best=null;
+    // 候補：点の真上・真下と、点の横（曲線の下などの空き）。曲線・90° の破線・点に重ならず、点に近いものを選ぶ
+    const sx= anchor==='right'? -1 : 1;
+    const cands=[];
+    [0,20,40,60,80,100].forEach(ax=>[-(th/2+10),(th/2+10),-(th/2+30),(th/2+30),-(th/2+4),(th/2+2),0].forEach(dy=>{
+      if(ax===0&&Math.abs(dy)<th/2+8) return;
+      cands.push([sx*ax,dy]);
+    }));
+    for(const [ddx,dy] of cands){
+      const cy=py+dy;
+      let x0=(anchor==='left'? px+8 : anchor==='right'? px-8-tw : px-tw/2)+ddx;
+      x0=clamp(x0,L+3,L+pw-tw-3);
+      const inside= cy-th/2>=T+2 && cy+th/2<=T+ph-2;
+      let clr=Infinity;
+      for(let qx=x0; qx<=x0+tw; qx+=3){
+        const yy=curveY(qx);
+        const d= yy<cy-th/2? (cy-th/2-yy) : yy>cy+th/2? (yy-cy-th/2) : 0;
+        clr=Math.min(clr,d);
+      }
+      if(cy-th/2<yb && cy+th/2>yb) clr=0;                                    // 90° の破線にもかからないように
+      if(x0<px+8 && x0+tw>px-8 && cy-th/2<py+8 && cy+th/2>py-8) clr=0;      // 点にも重ねない
+      const score=(inside?1000:0)+Math.min(clr,10)-0.04*Math.abs(ddx)-0.02*Math.abs(dy);
+      if(!best||score>best.score) best={x0,cy,score};
+    }
+    g.textAlign='left'; g.textBaseline='middle';
+    g.lineWidth=4; g.strokeStyle='rgba(255,255,255,0.95)'; g.lineJoin='round';
+    g.strokeText(text,best.x0,best.cy); g.fillStyle=color; g.fillText(text,best.x0,best.cy);
+  }
+  // 現在の ψ（緑の縦線と丸）…最小・最大のラベルより先にかき、ラベルの文字を線の上に出す
+  const cur=model(S.i,S.b,S.phi);
+  const cx=X(clamp(S.phi,0,1));
+  g.strokeStyle=COL.p; g.lineWidth=2; line(cx,T,cx,T+ph);
+  if(isConst()){
+    const v=constVal();
+    placeLabel(`θ は一定（＝${fmtDeg(v)}°）`, X(0.5), Y(val(v)), 'center', COL.tText);
+  }else{
+    const tmin=Math.abs(S.i-S.b), tmax=S.i+S.b;
+    dot(X(0),Y(val(tmin)),6,COL.t); dot(X(1),Y(val(tmin)),6,COL.t); dot(X(0.5),Y(val(tmax)),6,COL.t);
+    placeLabel(`最小 |i−β|＝${fmtDeg(tmin)}°`, X(0), Y(val(tmin)), 'left', COL.tText);
+    placeLabel(`最大 i＋β＝${fmtDeg(tmax)}°`, X(0.5), Y(val(tmax)), 'center', COL.tText);
+  }
+  dot(cx,Y(val(cur.th)),6,COL.p);
+  const ct=(isTime? `約 ${Math.round(S.phi*P_MIN)} 分` : psiText())+`（θ＝${fmtNum(cur.th,1)}°）`;
+  g.font=`bold 12px ${FONT}`; const ctw=g.measureText(ct).width;
+  g.textAlign='left'; g.textBaseline='bottom'; g.fillStyle=COL.p;
+  g.fillText(ct, clamp(cx-ctw/2, L, L+pw-ctw), T-5);
+}
+
+/* ============================================================
+   タブ①：3D（Three.js）
+============================================================ */
+let HAS3D=false, r3, r2, scene, scene2, cam, cam2, light2, arcGroup, pathLine, pathLine2, lastB=null;
+let arrowN, nRod, mRod, pinRod, pinHead, poleDot, poleDot2;
+const lbls={};
+let camAz=0, camEl=0, camDist=5.3;
+const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross3=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm3=a=>Math.hypot(a[0],a[1],a[2]);
+const scl3=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const add3=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const unit3=a=>{ const l=norm3(a)||1; return scl3(a,1/l); };
+// 数学の座標 (x, y, z) → Three.js の座標 (x, z, −y)（自転軸 z を画面の上向きに。右手系のまま）
+const V=a=>new THREE.Vector3(a[0], a[2], -a[1]);
+
+function resetCam(){
+  const d=[3.2,4.2,2.2], t=V(d), L=t.length();
+  camEl=Math.asin(t.y/L); camAz=Math.atan2(t.x,t.z);
+}
+function updateCam(){
+  if(!HAS3D) return;
+  const dist=camDist*Math.max(1,Math.sqrt(1.45/cam.aspect));   // 縦長の画面（スマホ）では少し離れる
+  cam.position.set(dist*Math.cos(camEl)*Math.sin(camAz), dist*Math.sin(camEl), dist*Math.cos(camEl)*Math.cos(camAz));
+  cam.lookAt(0,0,0);
+}
+function mkRod(r,color){ return new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,12), new THREE.MeshBasicMaterial({color})); }
+function placeRod(mesh,a,b){
+  const d=new THREE.Vector3().subVectors(b,a), L=d.length();
+  if(L<1e-6){ mesh.visible=false; return; }
+  mesh.visible=true; mesh.scale.set(1,L,1);
+  mesh.position.copy(a).addScaledVector(d,0.5);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.normalize());
+}
+function mkBall(r,color){ return new THREE.Mesh(new THREE.SphereGeometry(r,20,14), new THREE.MeshPhongMaterial({color, shininess:40})); }
+function mkLabel(key,html,color,anchor){
+  const d=document.createElement('div'); d.className='l3 '+(anchor||'c'); d.style.color=color; d.innerHTML=html;
+  el('lbl3d').appendChild(d); lbls[key]={el:d, pos:new THREE.Vector3(), show:true, anchor:anchor||'c'};
+}
+function setLabel(key,posMath,show,html,anchor){
+  const o=lbls[key]; o.show=show; if(!show) return;
+  o.pos.copy(V(posMath));
+  if(html!==undefined && o.html!==html){ o.el.innerHTML=html; o.html=html; }
+  if(anchor && o.anchor!==anchor){ o.el.className='l3 '+anchor; o.anchor=anchor; }
+}
+function circlePts(rad,h,N){ const p=[]; for(let k=0;k<N;k++){ const t=k/N*2*Math.PI; p.push(V([rad*Math.cos(t),rad*Math.sin(t),h])); } return p; }
+function mkDashedCircle(rad,h){
+  const geo=new THREE.BufferGeometry().setFromPoints(circlePts(rad,h,120));
+  const ln=new THREE.LineLoop(geo,new THREE.LineDashedMaterial({color:0xc0473a, dashSize:0.07, gapSize:0.05}));
+  ln.computeLineDistances(); return ln;
+}
+function disposeObj(o){ if(!o) return; if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }
+function clearGroup(gp){ while(gp.children.length){ const c=gp.children[gp.children.length-1]; gp.remove(c); disposeObj(c); } }
+
+// 2つの向き u, v の間の円弧の点（数学の座標）。0.5° 未満は描かない、179.5° 超は u に垂直な軸で 180° 回す
+function arcPts(u,v,R,N=30){
+  const ang=Math.acos(clamp(dot3(u,v),-1,1));
+  if(ang<0.5*DEG) return {pts:null, ang, mid:unit3(u)};
+  const pts=[];
+  if(ang>179.5*DEG){
+    let ax=cross3(u,[0,0,1]); if(norm3(ax)<1e-6) ax=[1,0,0]; ax=unit3(ax);
+    const w=cross3(ax,u);
+    for(let k=0;k<=N;k++){ const t=k/N*Math.PI; pts.push(scl3(add3(scl3(u,Math.cos(t)),scl3(w,Math.sin(t))),R)); }
+  }else{
+    const s=Math.sin(ang);
+    for(let k=0;k<=N;k++){ const t=k/N; pts.push(scl3(add3(scl3(u,Math.sin((1-t)*ang)/s),scl3(v,Math.sin(t*ang)/s)),R)); }
+  }
+  return {pts, ang, mid:unit3(pts[N>>1])};
+}
+function addTube(ptsMath,color,r){
+  const curve=new THREE.CatmullRomCurve3(ptsMath.map(V));
+  arcGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(8,ptsMath.length*2), r, 6, false), new THREE.MeshBasicMaterial({color})));
+}
+function addLine(aMath,bMath,color){
+  const geo=new THREE.BufferGeometry().setFromPoints([V(aMath),V(bMath)]);
+  arcGroup.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color})));
+}
+
+function init3D(){
+  if(typeof THREE==='undefined') throw new Error('Three.js が読み込まれていません');
+  r3=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+  r2=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+  el('view3d').appendChild(r3.domElement);
+  el('viewObs').appendChild(r2.domElement);
+
+  /* --- 空間のようす --- */
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xe4edf5);
+  scene.add(new THREE.AmbientLight(0xffffff,0.72));
+  const dl=new THREE.DirectionalLight(0xffffff,0.55); dl.position.copy(V([3,2,4])); scene.add(dl);
+  cam=new THREE.PerspectiveCamera(40,1.6,0.1,100);
+  // 星（半透明の球）と赤道
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32),
+    new THREE.MeshPhongMaterial({color:0xf2e6cf, transparent:true, opacity:0.55, depthWrite:false})));
+  scene.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(circlePts(1,0,120)),
+    new THREE.LineBasicMaterial({color:0xb8a98a})));
+  // 座標軸
+  [[1.7,0,0],[0,1.7,0],[0,0,1.75]].forEach(a=>{
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V([0,0,0]),V(a)]), new THREE.LineBasicMaterial({color:0x9aa5b1})));
+  });
+  // 自転軸（竹串）
+  const ax=mkRod(0.02,0x8a6a3a); placeRod(ax,V([0,0,-1.5]),V([0,0,1.5])); scene.add(ax);
+  // 視線 n
+  arrowN=new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,0), 2.1, 0x2b7de9, 0.2, 0.1); scene.add(arrowN);
+  nRod=mkRod(0.014,0x2b7de9); scene.add(nRod);
+  // 磁極 m（半径1の球面上の点）とまち針
+  mRod=mkRod(0.012,0xc0473a); scene.add(mRod);
+  pinRod=mkRod(0.008,0x8e959c); scene.add(pinRod);
+  pinHead=mkBall(0.05,0xc0473a); scene.add(pinHead);
+  poleDot=mkBall(0.04,0xc0473a); scene.add(poleDot);
+  arcGroup=new THREE.Group(); scene.add(arcGroup);
+  // ラベル
+  mkLabel('axis','自転軸',COL.axis,'r');
+  mkLabel('x','x','#7a8794'); mkLabel('y','y','#7a8794'); mkLabel('z','z','#7a8794');
+  mkLabel('n',`視線 ${VN}<br>（中心→観測者）`,'#1c5fbf'); lbls.n.el.style.textAlign='center';   // 2行にして矢じりの横に置けるようにする
+  mkLabel('m',`磁極 ${VM}`,COL.b,'l');
+  mkLabel('th','θ＝0.0°',COL.tText);
+  mkLabel('i','<i>i</i>',COL.i); mkLabel('b','β',COL.b); mkLabel('p','ψ',COL.p);
+
+  /* --- 視線の方向から見た星 --- */
+  scene2=new THREE.Scene(); scene2.background=new THREE.Color(0xe4edf5);
+  scene2.add(new THREE.AmbientLight(0xffffff,0.62));
+  light2=new THREE.DirectionalLight(0xffffff,0.5); scene2.add(light2);
+  scene2.add(new THREE.Mesh(new THREE.SphereGeometry(1,48,32), new THREE.MeshPhongMaterial({color:0xf2e6cf})));
+  poleDot2=mkBall(0.04,0xc0473a); scene2.add(poleDot2);
+  cam2=new THREE.OrthographicCamera(-2,2,1.3,-1.3,0.1,30);
+
+  // ドラッグで回転（方位・仰角。仰角は −80°〜80°）
+  let drag=false, lx=0, ly=0;
+  const v3=el('view3d');
+  v3.addEventListener('pointerdown',e=>{ drag=true; lx=e.clientX; ly=e.clientY; v3.style.cursor='grabbing'; });
+  window.addEventListener('pointerup',()=>{ drag=false; v3.style.cursor='grab'; });
+  window.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    camAz-=(e.clientX-lx)*0.008; camEl=clamp(camEl+(e.clientY-ly)*0.006,-80*DEG,80*DEG);
+    lx=e.clientX; ly=e.clientY;
+  });
+  resetCam();
+}
+
+function update3D(){
+  if(!HAS3D) return;
+  const {n,m,th}=model(S.i,S.b,S.phi);
+  const O=new THREE.Vector3(0,0,0);
+  arrowN.setDirection(V(n).normalize());
+  placeRod(nRod,O,V(scl3(n,2.1-0.2)));
+  placeRod(mRod,O,V(m));
+  placeRod(pinRod,V(m),V(scl3(m,1.25)));
+  pinHead.position.copy(V(scl3(m,1.25)));
+  poleDot.position.copy(V(m));
+  poleDot2.position.copy(V(m));
+  // 磁極の道筋（高さ cosβ、半径 sinβ の破線円）
+  if(lastB!==S.b){
+    if(pathLine){ scene.remove(pathLine); disposeObj(pathLine); }
+    if(pathLine2){ scene2.remove(pathLine2); disposeObj(pathLine2); }
+    pathLine=mkDashedCircle(Math.sin(S.b*DEG),Math.cos(S.b*DEG)); scene.add(pathLine);
+    pathLine2=mkDashedCircle(Math.sin(S.b*DEG),Math.cos(S.b*DEG)); scene2.add(pathLine2);
+    lastB=S.b;
+  }
+  // 円弧
+  clearGroup(arcGroup);
+  const z=[0,0,1];
+  const aT=arcPts(n,m,0.5);   if(aT.pts) addTube(aT.pts,0xe0863a,0.014);
+  const aI=arcPts(z,n,0.35);  if(aI.pts) addTube(aI.pts,0x2b7de9,0.011);
+  const aB=arcPts(z,m,0.3);   if(aB.pts) addTube(aB.pts,0xc0473a,0.011);
+  // 自転した角（道筋の円の中心から、ψ＝0° の位置 → いまの位置）
+  const sb=Math.sin(S.b*DEG), cb=Math.cos(S.b*DEG), a=2*Math.PI*S.phi;
+  let showP=false, pMid=[0,0,cb];
+  if(sb>Math.sin(0.5*DEG) && a>=0.5*DEG && a<=2*Math.PI+1e-9){
+    const rr=0.5*sb, N=40, pts=[];
+    for(let k=0;k<=N;k++){ const t=a*k/N; pts.push([rr*Math.cos(t), rr*Math.sin(t), cb]); }
+    addTube(pts,0x3a9a5f,0.009);
+    addLine([0,0,cb],[sb,0,cb],0x3a9a5f); addLine([0,0,cb],m,0x3a9a5f);
+    showP=true; pMid=[rr*1.55*Math.cos(a/2), rr*1.55*Math.sin(a/2), cb];
+  }
+  // ラベル
+  setLabel('axis',[0,0,1.5],true);
+  setLabel('x',[1.84,0,0],true); setLabel('y',[0,1.84,0],true); setLabel('z',[0,0,1.88],true);
+  setLabel('n',scl3(n,2.1),true);
+  setLabel('m',scl3(m,1.3),true);
+  setLabel('th',scl3(aT.mid,aT.pts?0.74:0.62),true,`θ＝${fmtNum(th,1)}°`);
+  setLabel('i',scl3(aI.mid,0.47),true);
+  setLabel('b',scl3(aB.mid,0.41),true);
+  setLabel('p',pMid,showP);
+}
+function renderLabels(){
+  const w=el('view3d').clientWidth, h=el('view3d').clientHeight;
+  const tc=el('view3d').parentNode.querySelector('.view-title');
+  const rects=[{x:tc.offsetLeft-2, y:tc.offsetTop-2, w:tc.offsetWidth+4, h:tc.offsetHeight+4}];   // 見出しの札には重ねない
+  // 重なりの面積（左右に3px の余白）。skip に書いたラベルはその四角を無視する
+  const ov=(r,key)=>rects.reduce((acc,q)=>q.skip===key? acc : acc+Math.max(0,Math.min(r.x+r.w+3,q.x+q.w)-Math.max(r.x-3,q.x))*Math.max(0,Math.min(r.y+r.h,q.y+q.h)-Math.max(r.y,q.y)),0);
+  const o0=new THREE.Vector3(0,0,0).project(cam), x0=(o0.x+1)/2*w, y0=(1-o0.y)/2*h;
+  // 図の大事な部分にも文字を重ねない：視線の矢じりと、星の外に出ている矢の軸。
+  // 磁極の点・まち針の頭は「磁極 m」のラベル以外が避ける（「磁極 m」はその横に置きたいので）
+  const scr=a=>{ const q=V(a).project(cam); return [(q.x+1)/2*w, (1-q.y)/2*h]; };
+  const {n:nn, m:mm}=model(S.i,S.b,S.phi);
+  const obs=[[scl3(nn,2.1),9,null],[mm,5,'m'],[scl3(mm,1.25),6,'m']];
+  for(let s=1.0;s<2.05;s+=0.12) obs.push([scl3(nn,s),4,null]);
+  obs.forEach(([a,r,skip])=>{ const [sx,sy]=scr(a); rects.push({x:sx-r, y:sy-r, w:2*r, h:2*r, skip}); });
+  const fit=(lx,ly,wd,hd)=>({x:clamp(lx,4,Math.max(4,w-wd-4)), y:clamp(ly,2,Math.max(2,h-hd-2)), w:wd, h:hd});
+  // 大事なものから置き、重なったら上下左右にずらす（画面の外にははみ出さない）
+  ['th','n','m','p','i','b','axis','z','x','y'].forEach(key=>{
+    const o=lbls[key];
+    if(!o.show){ o.el.style.display='none'; return; }
+    const p=o.pos.clone().project(cam);
+    if(p.z>1){ o.el.style.display='none'; return; }
+    o.el.style.display='block';
+    const x=(p.x+1)/2*w, y=(1-p.y)/2*h, wd=o.el.offsetWidth, hd=o.el.offsetHeight;
+    let lx= o.anchor==='l'? x+7 : o.anchor==='r'? x-7-wd : x-wd/2;
+    let ly= y-hd/2;
+    const first=[];                                  // 先に試す位置（視線のラベルだけ）
+    if(key==='n'){
+      // 矢じりの先（矢の延長上）→ 矢じりの横（軸と反対の側）→ 上下 → 残りの横。どれも矢じりのすぐそば
+      const dx=x-x0, dy=y-y0, len=Math.hypot(dx,dy);
+      const ux=len<20? 1 : dx/len, uy=len<20? 0 : dy/len;
+      const t=Math.min(Math.abs(ux)>1e-3? (wd/2)/Math.abs(ux) : Infinity, Math.abs(uy)>1e-3? (hd/2)/Math.abs(uy) : Infinity)+8;
+      const cxs=[[x+ux*t, y+uy*t]];
+      const sideX= ux<0? [-1,1] : [1,-1], sideY= uy<0? [-1,1] : [1,-1];
+      sideX.forEach(sx=>{ cxs.push([x+sx*(wd/2+14), y]); });
+      sideY.forEach(sy=>{ cxs.push([x, y+sy*(hd/2+12)]); });
+      sideX.forEach(sx=>sideY.forEach(sy=>cxs.push([x+sx*(wd/2+10), y+sy*(hd/2+8)])));
+      cxs.forEach(([cx,cy])=>first.push(fit(cx-wd/2, cy-hd/2, wd, hd)));
+      lx=cxs[0][0]-wd/2; ly=cxs[0][1]-hd/2;
+    }
+    const cands=first.slice();
+    [0,1,-1,2,-2,3,-3].forEach(k=>[0,1,-1,2,-2].forEach(j=>cands.push(fit(lx+j*(wd/2+6), ly+k*(hd+1), wd, hd))));
+    let best=null, bestOv=Infinity;
+    for(const r of cands){
+      const v=ov(r,key);
+      if(v===0){ best=r; break; }
+      if(v<bestOv){ bestOv=v; best=r; }
+    }
+    rects.push(best);
+    o.el.style.left=best.x+'px'; o.el.style.top=best.y+'px';
+  });
+}
+function updateObsCam(){
+  const n=model(S.i,S.b,S.phi).n;
+  cam2.position.copy(V(scl3(n,10)));
+  if(S.i<1) cam2.up.set(1,0,0); else cam2.up.set(0,1,0);   // i<1° では z 軸の射影が 0 になるので up を x 軸に
+  cam2.lookAt(0,0,0);
+  light2.position.copy(cam2.position);
+}
+
+/* ============================================================
+   大きさ・描画ループ
+============================================================ */
+function onResize(){
+  if(HAS3D){
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const w=el('view3d').clientWidth, h=el('view3d').clientHeight;
+    if(w>0){ r3.setPixelRatio(dpr); r3.setSize(w,h,false); r3.domElement.style.height=h+'px'; cam.aspect=w/h; cam.updateProjectionMatrix(); }
+    const w2=el('viewObs').clientWidth, h2=el('viewObs').clientHeight;
+    if(w2>0){ r2.setPixelRatio(dpr); r2.setSize(w2,h2,false); r2.domElement.style.height=h2+'px';
+      const hh=1.35, hw=hh*w2/h2; cam2.left=-hw; cam2.right=hw; cam2.top=hh+0.22; cam2.bottom=-hh+0.22; cam2.updateProjectionMatrix(); }   // 見出しの札の分だけ星を下げる
+  }
+  drawGraph();
+}
+let dirty=true;
+function updateAll(){
+  syncControls();
+  renderCalc();
+  renderCard2();
+  update3D();
+  if(S.tab===2) drawGraph();
+}
+let lastT=performance.now();
+function frame(t){
+  requestAnimationFrame(frame);
+  const dt=Math.min(0.1,Math.max(0,(t-lastT)/1000)); lastT=t;
+  if(S.play){ S.phi=(S.phi+dt/SPIN_SEC)%1; dirty=true; }
+  if(dirty){ dirty=false; updateAll(); }
+  if(HAS3D && S.tab===1){
+    updateCam(); updateObsCam();
+    r3.render(scene,cam); r2.render(scene2,cam2);
+    renderLabels();
+  }
+}
+
+/* ============================================================
+   起動
+============================================================ */
+try{ init3D(); HAS3D=true; }
+catch(e){
+  HAS3D=false;
+  ['view3d','viewObs'].forEach(id=>{ el(id).innerHTML='<div class="nogl">3D の図を表示できません（Three.js の読み込みか WebGL が使えません）。計算とグラフは使えます。</div>'; });
+}
+window.addEventListener('resize',onResize);
+setTab(S.tab);
+updateAll(); onResize(); updateCam(); if(HAS3D){ updateObsCam(); }
+requestAnimationFrame(frame);
+
+// 検算・撮影用（ページの動作には使わない）
+window.SIM={S, model, fracOver90, exactDot, exactM, P_MIN, LIT, PRESETS,
+  refresh:()=>{ updateAll(); onResize(); },
+  texts:()=>({calc:el('calc').innerText, verdict1:el('verdict1').innerText, card2:el('card2').innerText,
+              verdict2:el('verdict2').innerText, psi:el('v-p1').innerText, sel:el('sel1').value})};
+</script>
+</body>
+</html>

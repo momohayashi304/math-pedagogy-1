@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1次関数とみなせる？ ― 目盛りのずれ予測シミュレータ</title>
+<style>
+  :root{
+    --blue:#2b7de9; --blue-d:#1c5fbf; --ink:#2c3e50; --line:#dfe4ea;
+    --orange:#e8833a; --green:#27ae60; --bg:#eef2f5;
+    /* グラフの色（設計書 2章の共通規約） */
+    --c-navy:#123c40; --c-orange:#e0863a; --c-teal:#17738a; --c-red:#c0473a; --c-green:#3a9a5f;
+    --c-gray:#b9a97f; --c-purple:#7a4fa0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink); margin:0; padding:14px;
+  }
+  .container{max-width:1080px; margin:0 auto; background:#fff; border-radius:12px;
+    box-shadow:0 6px 18px rgba(0,0,0,.09); padding:18px 20px 24px;}
+  .head{text-align:center; margin-bottom:6px;}
+  .head h1{font-size:1.35rem; color:var(--ink); margin:2px 0;}
+  .head .sub{font-size:.8rem; color:#7f8c8d;}
+  /* タブ */
+  .tabs{display:flex; justify-content:center; gap:6px; margin:12px 0 16px; border-bottom:2px solid var(--line);}
+  .tab-btn{background:none; border:none; padding:10px 18px; font-size:1rem; font-weight:bold;
+    color:#8a99a8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:.2s;}
+  .tab-btn:hover{color:var(--blue);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .desc{background:#f4f8fe; border-left:4px solid var(--blue); padding:10px 12px;
+    font-size:.9rem; line-height:1.6; margin-bottom:14px; border-radius:0 6px 6px 0;}
+  .desc b{color:var(--blue-d);}
+  .grid{display:flex; flex-wrap:wrap; gap:18px;}
+  .col-ctrl{flex:1; min-width:290px;}
+  .col-view{flex:1.5; min-width:340px; display:flex; flex-direction:column; gap:12px;
+    position:sticky; top:6px; align-self:flex-start; z-index:3;}
+  /* スライダー */
+  .slider-row{margin-bottom:11px;}
+  .slider-row label{display:flex; justify-content:space-between; font-size:.9rem; font-weight:bold; margin-bottom:3px;}
+  .slider-row label .val{color:var(--blue-d); font-family:"Courier New",monospace;}
+  input[type=range]{width:100%; accent-color:var(--blue); height:22px;}
+  input[type=range]:disabled{opacity:.4;}
+  .hint{font-size:.78rem; color:#8a99a8; margin-top:-2px;}
+  /* ビュー枠 */
+  .view-box{position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff;}
+  .view-title{display:inline-block; margin:8px 10px 0; background:rgba(255,255,255,.85);
+    padding:2px 8px; border-radius:4px; font-size:.8rem; font-weight:bold; color:var(--ink); border:1px solid var(--line);}
+  canvas{display:block; width:100%;}
+  /* 結果の枠 */
+  .match-box{background:#f8fafb; border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-top:4px;}
+  .match-label{font-size:.95rem; font-weight:bold; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .msg{margin-top:8px; font-size:.9rem; min-height:1.3em; font-weight:bold;}
+  .btn-row{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  button.act{flex:1; min-width:110px; padding:9px; border:none; border-radius:7px; font-size:.9rem;
+    font-weight:bold; cursor:pointer; color:#fff; background:var(--blue); transition:.15s;}
+  button.act:hover{background:var(--blue-d);}
+  button.ghost{background:#95a5a6;}
+  button.ghost:hover{background:#7f8c8d;}
+  /* モードボタン */
+  .modebtns{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:9px;}
+  .modebtns button{flex:1; min-width:130px; padding:7px 6px; border:2px solid var(--line); background:#fff;
+    border-radius:8px; font-size:.85rem; font-weight:bold; color:var(--ink); cursor:pointer; transition:.15s; line-height:1.3;}
+  .modebtns button.active{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .modebtns.two button{flex:1 1 calc(50% - 6px); min-width:0;}
+  .modebtns.three button{min-width:0; flex:1 1 calc(33% - 6px);}
+  .modebtns button small{display:block; font-size:.78rem; font-weight:normal;}
+  .verdict{padding:12px 14px; border-radius:8px; font-size:1rem; font-weight:bold; margin-top:10px; line-height:1.5;}
+  .verdict.no{background:#fdecea; color:#c0392b; border:1px solid #f5b7b1;}
+  .verdict.yes{background:#eafaf1; color:#1e8449; border:1px solid #a9dfbf;}
+  .small{font-size:.82rem; font-weight:normal; color:#5d6d7e;}
+  .footer{text-align:center; font-size:.72rem; color:#aab3bd; margin-top:16px; line-height:1.6;}
+
+  /* ---- この題目で足したもの ---- */
+  .sec-title{font-size:.88rem; font-weight:bold; color:var(--ink); margin:4px 0 6px; padding-left:6px; border-left:4px solid var(--c-navy);}
+  .pair{display:flex; gap:12px; flex-wrap:wrap;}
+  .pair .slider-row{flex:1; min-width:120px; margin-bottom:2px;}
+  .msg.warn{color:var(--c-red); margin-top:0; min-height:0;}
+  .formula .fl{font-size:.95rem; line-height:2.4; margin-top:2px;}
+  .formula .fl b{color:var(--c-orange); font-size:1.08em;}
+  .frac{display:inline-flex; flex-direction:column; vertical-align:middle; text-align:center; line-height:1.15; margin:0 2px; font-size:.92em;}
+  .frac .nu{border-bottom:1.5px solid currentColor; padding:0 3px;}
+  .frac .de{padding:0 3px;}
+  .out-line{font-size:.95rem; line-height:1.6; margin:0 0 6px;}
+  .out-line b.pred{color:var(--c-orange); font-size:1.15em;}
+  .out-line b.truth{color:var(--c-teal); font-size:1.15em;}
+  .out-line b.err{color:var(--c-red); font-size:1.15em;}
+  .out-line b.pos{color:var(--blue-d);}
+  .chk{display:flex; align-items:center; gap:6px; font-size:.9rem; font-weight:bold; margin-top:12px; cursor:pointer;}
+  .chk input{width:18px; height:18px; accent-color:var(--c-orange);}
+  .radios{margin-bottom:12px;}
+  .radios label{display:flex; gap:7px; align-items:flex-start; padding:7px 9px; border:2px solid var(--line); border-radius:8px;
+    margin-bottom:6px; font-size:.86rem; font-weight:bold; cursor:pointer; background:#fff; line-height:1.4;}
+  .radios label input{margin-top:3px; accent-color:var(--blue);}
+  .radios label.active{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .radios label.disabled{opacity:.45; cursor:not-allowed;}
+  .res-big{font-size:1.05rem; font-weight:bold;}
+  .res-big b{color:var(--c-red); font-size:1.3em; white-space:nowrap;}
+  .res-big b.zero{color:var(--c-green);}
+  .res-mid{font-size:.92rem; font-weight:bold; margin:8px 0 4px; line-height:1.5;}
+  .res-mid .ok{color:var(--c-green);}
+  .res-small{margin-top:2px;}
+  .added{color:var(--c-purple); font-weight:bold;}
+  .note{font-size:.84rem; background:#fff5ec; border-radius:6px; padding:6px 9px; margin-top:8px; color:#8a4a12; line-height:1.5;}
+  .legend{display:flex; flex-wrap:wrap; gap:3px 12px; font-size:.76rem; color:#5d6d7e; padding:2px 10px 8px;}
+  .legend span{white-space:nowrap;}
+  .legend i{display:inline-block; vertical-align:middle; margin-right:3px;}
+  .legend i.ln{width:18px; border-top:3px solid;}
+  .legend i.dt{width:10px; height:10px; border-radius:50%;}
+  .legend i.dm{width:9px; height:9px; transform:rotate(45deg);}
+  .legend i.bx{width:12px; height:10px;}
+
+  @media (max-width:700px){
+    body{padding:6px;}
+    .container{padding:12px 10px 18px;}
+    .head h1{font-size:1.2rem;}
+    .tab-btn{padding:8px 8px; font-size:.92rem;}
+    .col-ctrl,.col-view{min-width:0; flex-basis:100%;}
+    .col-view{order:-1; background:#fff; padding:4px 0 6px; top:0; box-shadow:0 6px 8px -6px rgba(0,0,0,.18);}
+    .modebtns.three button{padding:7px 3px; font-size:.8rem; letter-spacing:-.02em;}
+  }
+  @media (max-height:520px){
+    .col-view{position:static;}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="head">
+    <h1>1次関数とみなせる？</h1>
+    <div class="sub">中学2年 数学　東京書籍「新編 新しい数学2」第3章4節 1次関数の利用 p.85 ／ 1日3回の測定から予測しよう</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="1">① 2点から予測しよう</button>
+    <button class="tab-btn" data-tab="2">② 1次関数とみなせる？</button>
+  </div>
+
+  <!-- ============ TAB 1 : 2点から予測しよう ============ -->
+  <div class="panel active" id="panel-1">
+    <div class="desc">
+      目盛り合わせで測った2つの点 <b>A</b>・<b>B</b> を通る直線（1次関数）で、測っていない時刻の<b>目盛りのずれ</b>を予測しよう。点はグラフの上でドラッグしても動かせるよ。<b>本当のグラフ</b>（特別な点検の日に細かく測った記録）を重ねると、予測がどれだけ<b>はずれ</b>ているか分かる。
+    </div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="sec-title">測定点A</div>
+        <div class="pair">
+          <div class="slider-row">
+            <label>Aの時刻 <span class="val" id="v-At">2時</span></label>
+            <input type="range" id="s-At" min="0" max="24" step="1" value="2">
+          </div>
+          <div class="slider-row">
+            <label>Aの値 <span class="val" id="v-Av">3</span></label>
+            <input type="range" id="s-Av" min="0" max="14" step="0.5" value="3">
+          </div>
+        </div>
+        <div class="sec-title">測定点B</div>
+        <div class="pair">
+          <div class="slider-row">
+            <label>Bの時刻 <span class="val" id="v-Bt">10時</span></label>
+            <input type="range" id="s-Bt" min="0" max="24" step="1" value="10">
+          </div>
+          <div class="slider-row">
+            <label>Bの値 <span class="val" id="v-Bv">7</span></label>
+            <input type="range" id="s-Bv" min="0" max="14" step="0.5" value="7">
+          </div>
+        </div>
+        <div class="msg warn" id="msg-same"></div>
+        <div class="hint" id="msg-truth" hidden>本当のグラフを表示中は、点はグラフの上で測った値になるよ（目盛り合わせで測ったつもり）</div>
+
+        <div class="match-box formula" style="padding:7px 12px;">
+          <div class="match-label"><span>直線の式</span><button class="act" id="btn-formula" style="flex:0 0 auto;min-width:110px;padding:5px 12px;">式を見る</button></div>
+          <div id="formula" hidden>
+            <div class="fl" id="f1"></div>
+            <div class="fl" id="f2"></div>
+            <div class="fl" id="f3"></div>
+          </div>
+        </div>
+
+        <div class="slider-row" style="margin-top:8px;margin-bottom:4px;">
+          <label>予測したい時刻 <span class="val" id="v-t">6時</span></label>
+          <input type="range" id="s-t" min="0" max="24" step="0.5" value="6">
+        </div>
+        <div class="out-line" id="pred-line"></div>
+
+        <div class="sec-title">本当のグラフ</div>
+        <div class="modebtns two" id="truth-btns">
+          <button data-k="none" class="active">かくす</button>
+          <button data-k="a">(a) ほぼ直線</button>
+          <button data-k="b">(b) 途中で段差</button>
+          <button data-k="c">(c) 外側で曲がる</button>
+        </div>
+        <div class="out-line" id="truth-line" hidden></div>
+        <div class="verdict yes" id="verdict1" hidden>
+          <span id="v1-main"></span>
+          <div class="small" id="v1-sub"></div>
+        </div>
+
+        <label class="chk"><input type="checkbox" id="chk-band"> はずれ0.5の帯を表示</label>
+        <div class="btn-row">
+          <button class="act ghost" id="btn-reset1">A・Bを最初の位置にもどす</button>
+        </div>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">📈 目盛りのずれのグラフ</div>
+          <canvas id="cv1" aria-label="目盛りのずれのグラフ"></canvas>
+          <div class="legend">
+            <span><i class="dt" style="background:var(--c-navy)"></i>測った点</span>
+            <span><i class="ln" style="border-color:var(--c-orange)"></i>予測の直線（外側は破線）</span>
+            <span><i class="dm" style="background:var(--c-orange)"></i>予測した点</span>
+            <span><i class="ln" style="border-color:var(--c-teal)"></i>本当のグラフ</span>
+            <span><i class="ln" style="border-color:var(--c-red)"></i>はずれ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 2 : 1次関数とみなせる？ ============ -->
+  <div class="panel" id="panel-2">
+    <div class="desc">
+      目盛り合わせで測った点を<b>直線で結んで</b>予測するよ。最初の画面はステップ3と同じ『10時までの測定だけで予測』。<b>18時の測定も使って結ぶ</b>、<b>測る間かくを短くする</b>、<b>変域を分ける</b>と、はずれはどう変わるかな？ 横軸は 2時から18時までを見るよ（画面の外の22時などの測定は描かない）。赤くぬられたところは、はずれが0.5をこえた時間。
+    </div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="sec-title">本当のグラフ</div>
+        <div class="modebtns three" id="truth2-btns">
+          <button data-k="a">(a) ほぼ直線</button>
+          <button data-k="b" class="active">(b) 途中で段差</button>
+          <button data-k="c">(c) 外側で曲がる</button>
+        </div>
+
+        <div class="sec-title">測る間かく</div>
+        <div class="modebtns three" id="every-btns" style="margin-bottom:4px;">
+          <button data-h="8" class="active">8時間おき<small>（1日3回）</small></button>
+          <button data-h="4">4時間おき<small>（1日6回）</small></button>
+          <button data-h="2">2時間おき<small>（1日12回）</small></button>
+        </div>
+        <div class="hint" style="margin:2px 0 12px;">画面は2時〜18時だけなので、見える点は3・5・9個（1日の回数とはちがうよ）</div>
+
+        <div class="sec-title">予測のしかた</div>
+        <div class="radios" id="mode2-radios">
+          <label class="active"><input type="radio" name="mode2" value="before18" checked> 10時までの測定だけで予測（ステップ3と同じ）</label>
+          <label><input type="radio" name="mode2" value="between"> 18時の測定も使って、測った点を順に結ぶ</label>
+          <label id="lbl-split"><input type="radio" name="mode2" value="split"> 変域を分ける（切り替えの前と後）</label>
+        </div>
+
+        <div class="match-box">
+          <div class="res-big" id="r2-hours"></div>
+          <div class="res-mid" id="r2-ok"></div>
+          <div class="small res-small" id="r2-points"></div>
+          <div class="small res-small added" id="r2-added" hidden>（6時に1回追加）切り替えの前に、6時にもう1回測ったよ</div>
+          <div class="small res-small" id="r2-max"></div>
+          <div class="note" id="r2-note-between" hidden>回数を増やしても、段差のところのはずれはなくならないよ → 『変域を分ける』を試してみよう</div>
+          <div class="note" id="r2-note-split" hidden>このグラフでは、切り替えの前と後がそれぞれ直線なので、はずれは0になった</div>
+        </div>
+        <div class="verdict no" id="verdict2"><span id="v2-main"></span></div>
+        <div class="btn-row">
+          <button class="act ghost" id="btn-reset2">最初にもどす</button>
+        </div>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">📈 測った点を結んだ予測と、本当のグラフ</div>
+          <canvas id="cv2" aria-label="測った点を結んだ予測と、本当のグラフ"></canvas>
+          <div class="legend">
+            <span><i class="dt" style="background:var(--c-navy)"></i>測った点</span>
+            <span><i class="ln" style="border-color:var(--c-orange)"></i>予測（10時より後に延ばした所は破線）</span>
+            <span><i class="ln" style="border-color:var(--c-teal)"></i>本当のグラフ</span>
+            <span><i class="bx" style="background:rgba(192,71,58,.22)"></i>はずれが0.5をこえた時間</span>
+            <span>横軸の下の帯：<i class="bx" style="background:var(--c-green)"></i>はずれ0.5以内　<i class="bx" style="background:rgba(192,71,58,.55)"></i>0.5をこえる</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">目盛りのずれ予測シミュレータ／中学2年 1次関数の利用 第16時「1次関数とみなすこと」用　｜　数値は授業用の模式データです<br>図・イラストはすべて授業者が作成した模式図です。数値は授業用に作った値で、実際の観測データではありません。</div>
+</div>
+
+<script>
+/* ============================================================
+   模式データ（../data/linear_params.json をそのまま埋め込み。fetch しない）
+============================================================ */
+const PARAMS = {
+  "note": "模式データ。研究の実データ・改善幅の数値は使っていない。x=時刻(時), y=目盛りのずれ(単位なし)",
+  "measure_times_h": [2, 10, 18],
+  "A": [2, 3],
+  "B": [10, 7],
+  "line_AB": {"a": "1/2", "b": "2", "text": "y = (1/2)x + 2"},
+  "truths": {
+    "a": {"label": "ほぼ直線", "formula": "y = x/2 + 2 + 0.2*sin(pi*(x-2)/8)"},
+    "b": {"label": "途中で段差", "formula": "x<7: y = x/4 + 5/2 ; x>=7: y = x/4 + 9/2", "switch_h": 7, "step": 2, "memo": "7時ごろ 冷凍機の運転が切り替わった"},
+    "c": {"label": "外側で曲がる", "formula": "y = x/2 + 2 - (x-2)*(x-10)/64", "peak_h": 22}
+  },
+  "x_range_h": [0, 24],
+  "y_suggested_axis": [0, 14]
+};
+const INIT = {A:[2,3], B:[10,7], t:6};
+const COL = {navy:'#123c40', orange:'#e0863a', teal:'#17738a', red:'#c0473a', green:'#3a9a5f',
+             gray:'#b9a97f', purple:'#7a4fa0', memoBg:'#fff3b0', memoLine:'#e0b000'};
+const X0 = PARAMS.x_range_h[0], X1 = PARAMS.x_range_h[1];
+const Y0 = PARAMS.y_suggested_axis[0], Y1 = PARAMS.y_suggested_axis[1];
+const T_SWITCH = PARAMS.truths.b.switch_h;
+
+/* ============================================================
+   共通の数式（設計書 5章）
+============================================================ */
+const line = (a,b) => x => a*x + b;
+const truthA = x => x/2 + 2 + 0.2*Math.sin(Math.PI*(x-2)/8);
+const truthB = (x, side='right') => x/4 + 2.5 + ((side==='right' ? x>=7 : x>7) ? 2 : 0);
+const truthC = x => x/2 + 2 - (x-2)*(x-10)/64;
+const TOL = 0.5;   // 今日の約束
+const EPS = 1e-9;  // 丸めで「ちょうど0.5」が「こえた」に反転しないための許容誤差（02 の EPS と同じ）
+const isOK   = e => e <= TOL + EPS;
+const isOver = e => e >  TOL + EPS;
+// 予測が1本の式のとき。(b) の段差の瞬間は、1つの予測値を直前・直後の両方と比べて大きい方
+function errAt(k, x, pred){
+  if(k==='b') return Math.max(Math.abs(pred-truthB(x,'left')), Math.abs(pred-truthB(x,'right')));
+  const f = k==='a'?truthA:truthC; return Math.abs(pred-f(x));
+}
+// タブ②「変域を分ける」のとき：7時に予測値が2つある（前の直線の値と後の直線の値）
+function errSplitAt(x, predL, predR){
+  if(x < 7 - EPS) return Math.abs(predL(x) - truthB(x,'left'));
+  if(x > 7 + EPS) return Math.abs(predR(x) - truthB(x,'right'));
+  return Math.max(Math.abs(predL(7) - truthB(7,'left')), Math.abs(predR(7) - truthB(7,'right'))); // x=7：どちらも0
+}
+// 測った値（本当のグラフのその時刻の値。(b) で時刻がちょうど7のときは直後の値）
+const truthVal = (k, x) => k==='a' ? truthA(x) : k==='b' ? truthB(x,'right') : truthC(x);
+
+/* ============================================================
+   数の表示
+============================================================ */
+const MINUS = '−';
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ const t=a%b; a=b; b=t; } return a||1; }
+function reduce(n,q){ if(q<0){ n=-n; q=-q; } const g=gcd(n,q); return [n/g, q/g]; }
+function toFrac(v){                       // 分母 1,2,4,…,64 のどれかで整数になれば [分子, 分母]（約分済み）、ならなければ null
+  for(const q of [1,2,4,8,16,32,64]){ const n=Math.round(v*q); if(Math.abs(v*q-n)<1e-9) return reduce(n,q); }
+  return null;
+}
+const Rsub = (p,q) => reduce(p[0]*q[1]-q[0]*p[1], p[1]*q[1]);
+const Rmul = (p,q) => reduce(p[0]*q[0], p[1]*q[1]);
+const Rdiv = (p,q) => reduce(p[0]*q[1], p[1]*q[0]);
+function signed(s){ return String(s).replace('-', MINUS); }
+// 小数第2位まで。丸めたときは「約」、整数・0.5・0.25 は余分な0を付けない
+function fmtNum(v){
+  if(Math.abs(v) < 5e-10) v = 0;
+  const r = Math.round(v*100)/100;
+  if(Math.abs(v-r) < 1e-9) return signed(String(r === 0 ? 0 : r));
+  return '約' + signed(r.toFixed(2));
+}
+const fmtApprox = v => '約' + signed((Math.abs(v) < 0.005 ? 0 : v).toFixed(2));
+const fmtHour = t => signed(String(+t.toFixed(2))) + '時';
+function fracHTML(n, d, text){            // 縦に積んだ分数（data-t は文字で読むときの表記）
+  const t = text || (signed(n) + '/' + signed(d));
+  return `<span class="frac" data-t="${t}"><span class="nu">${signed(n)}</span><span class="de">${signed(d)}</span></span>`;
+}
+function ratHTML(p){                       // 約分済みの有理数
+  if(p[1] === 1) return signed(p[0]);
+  const s = p[0] < 0 ? MINUS : '';
+  return s + fracHTML(Math.abs(p[0]), p[1]);
+}
+
+/* ============================================================
+   タブ切り替え
+============================================================ */
+let curTab = 1;
+function setTab(n){
+  curTab = (+n === 2) ? 2 : 1;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', +b.dataset.tab === curTab));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + curTab));
+  if(curTab === 1) draw1(); else draw2();
+}
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => setTab(+b.dataset.tab)));
+
+/* ============================================================
+   グラフの共通部品（canvas 2D）
+============================================================ */
+const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif';
+function geom(cv, extraBottom){
+  const w = cv.clientWidth; if(!w) return null;
+  const h = Math.round(w*0.62);
+  const ctx = cv.getContext('2d');
+  const fs = clamp(w/50, 10, 13.5);
+  const pad = {l: fs*2.5, r: fs*1.0, t: fs*2.3, b: fs*3.0 + (extraBottom||0)};
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const X = x => pad.l + (x-X0)/(X1-X0)*pw;
+  const Y = y => pad.t + ph - (y-Y0)/(Y1-Y0)*ph;
+  return {cv, ctx, w, h, fs, pad, pw, ph, X, Y, extraBottom: extraBottom||0,
+          x2v: px => X0 + (px-pad.l)/pw*(X1-X0), y2v: py => Y0 + (pad.t+ph-py)/ph*(Y1-Y0)};
+}
+function frame(cv, extraBottom){
+  const P = geom(cv, extraBottom); if(!P) return null;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  cv.style.height = P.h + 'px';
+  if(cv.width !== Math.round(P.w*dpr) || cv.height !== Math.round(P.h*dpr)){ cv.width = Math.round(P.w*dpr); cv.height = Math.round(P.h*dpr); }
+  P.ctx.setTransform(dpr,0,0,dpr,0,0); P.ctx.clearRect(0,0,P.w,P.h);
+  return P;
+}
+function font(P, scale, bold){ return `${bold?'bold ':''}${(P.fs*(scale||1)).toFixed(1)}px ${FONT}`; }
+function drawAxes(P){
+  const {ctx, X, Y, pad, w, h, fs} = P;
+  ctx.save();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#e6ebf0';
+  for(let x=X0; x<=X1; x+=2){ ctx.beginPath(); ctx.moveTo(X(x), Y(Y0)); ctx.lineTo(X(x), Y(Y1)); ctx.stroke(); }
+  for(let y=Y0; y<=Y1; y+=2){ ctx.beginPath(); ctx.moveTo(X(X0), Y(y)); ctx.lineTo(X(X1), Y(y)); ctx.stroke(); }
+  ctx.strokeStyle = '#8795a1'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(X(X0), Y(Y1)); ctx.lineTo(X(X0), Y(Y0)); ctx.lineTo(X(X1), Y(Y0)); ctx.stroke();
+  ctx.fillStyle = '#5d6d7e'; ctx.font = font(P, 0.92);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for(let y=Y0; y<=Y1; y+=2) ctx.fillText(String(y), X(X0)-5, Y(y));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const step = P.pw < 430 ? 4 : 2;
+  for(let x=X0; x<=X1; x+=step) ctx.fillText(String(x), X(x), Y(Y0) + P.extraBottom + 5);
+  ctx.font = font(P, 0.95, true); ctx.fillStyle = '#2c3e50';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('目盛りのずれ', 4, pad.t - fs*0.75);
+  ctx.textAlign = 'right';
+  ctx.fillText('時刻（時）', w - pad.r, h - 5);
+  ctx.restore();
+}
+function clipPlot(P){ const {ctx, X, Y} = P; ctx.beginPath(); ctx.rect(X(X0), Y(Y1), X(X1)-X(X0), Y(Y0)-Y(Y1)); ctx.clip(); }
+function polyline(P, xs, f, opt){
+  const {ctx, X, Y} = P;
+  ctx.save(); clipPlot(P);
+  ctx.strokeStyle = opt.color; ctx.lineWidth = opt.width || 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.setLineDash(opt.dash || []);
+  ctx.beginPath(); xs.forEach((x,i) => { const px = X(x), py = Y(f(x)); i ? ctx.lineTo(px,py) : ctx.moveTo(px,py); });
+  ctx.stroke(); ctx.restore();
+}
+function range(a, b, step){ const out = []; const n = Math.round((b-a)/step); for(let i=0;i<=n;i++) out.push(a + i*step); return out; }
+function drawTruth(P, k){
+  const {ctx, X, Y} = P;
+  if(k === 'b'){
+    polyline(P, range(X0, T_SWITCH, 0.05), x => truthB(x,'left'), {color:COL.teal, width:3.5});
+    polyline(P, range(T_SWITCH, X1, 0.05), x => truthB(x,'right'), {color:COL.teal, width:3.5});
+    ctx.save(); ctx.strokeStyle = COL.teal; ctx.lineWidth = 1.3; ctx.setLineDash([2,3]);
+    ctx.beginPath(); ctx.moveTo(X(T_SWITCH), Y(truthB(T_SWITCH,'left'))); ctx.lineTo(X(T_SWITCH), Y(truthB(T_SWITCH,'right'))); ctx.stroke();
+    ctx.restore();
+  } else {
+    polyline(P, range(X0, X1, 0.05), k === 'a' ? truthA : truthC, {color:COL.teal, width:3.5});
+  }
+}
+function dot(P, x, y, color, r){
+  const {ctx} = P; ctx.save();
+  ctx.beginPath(); ctx.arc(P.X(x), P.Y(y), r, 0, Math.PI*2); ctx.fillStyle = color; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+}
+function diamond(P, x, y, color, r){
+  const {ctx} = P; const px = P.X(x), py = P.Y(y); ctx.save();
+  ctx.beginPath(); ctx.moveTo(px, py-r); ctx.lineTo(px+r, py); ctx.lineTo(px, py+r); ctx.lineTo(px-r, py); ctx.closePath();
+  ctx.fillStyle = color; ctx.fill(); ctx.lineWidth = 1.8; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+}
+// 白いふちどりつきの文字。はみ出すときは反対側に出す。place だけなら位置と箱を返す
+function placeTag(P, text, px, py, opt){
+  const {ctx, w, h} = P;
+  ctx.save(); ctx.font = font(P, opt.scale || 1, opt.bold !== false);
+  const tw = ctx.measureText(text).width; ctx.restore();
+  let align = opt.align || 'left', x = px;
+  const dx = opt.dx || 0;
+  if(align === 'left'){ x = px + dx; if(x + tw > w - 4){ x = px - dx; align = 'right'; } }
+  else if(align === 'right'){ x = px - dx; if(x - tw < 4){ x = px + dx; align = 'left'; } }
+  else { x = clamp(px, tw/2 + 4, w - tw/2 - 4); }
+  const y = clamp(py, P.fs + 2, h - 4);
+  const x0 = align === 'left' ? x : align === 'right' ? x - tw : x - tw/2;
+  return {text, x, y, align, opt, box:{x0, x1:x0 + tw, y0:y - P.fs*(opt.scale||1), y1:y + 3}};
+}
+function drawTag(P, T){
+  const {ctx} = P;
+  ctx.save(); ctx.font = font(P, T.opt.scale || 1, T.opt.bold !== false);
+  ctx.textAlign = T.align; ctx.textBaseline = 'alphabetic';
+  ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(255,255,255,.95)';
+  ctx.strokeText(T.text, T.x, T.y); ctx.fillStyle = T.opt.color; ctx.fillText(T.text, T.x, T.y);
+  ctx.restore();
+}
+function tag(P, text, px, py, opt){ const T = placeTag(P, text, px, py, opt); drawTag(P, T); return T; }
+const overlap = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+function memoNote(P){
+  const {ctx, X, Y, fs, w} = P;
+  const lines = ['メモ：7時ごろ', '冷凍機の運転が切り替わった'];
+  ctx.save(); ctx.font = font(P, 0.85, true);
+  const tw = Math.max(...lines.map(s => ctx.measureText(s).width));
+  const bw = tw + 14, bh = fs*0.85*2 + 14;
+  let bx = clamp(X(T_SWITCH) - 12, X(X0) + 4, w - bw - 4), by = Y(Y1) + 4;
+  ctx.fillStyle = COL.memoBg; ctx.strokeStyle = COL.memoLine; ctx.lineWidth = 1.5;
+  ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+  ctx.strokeStyle = COL.memoLine; ctx.setLineDash([3,3]); ctx.beginPath();
+  ctx.moveTo(X(T_SWITCH), by + bh); ctx.lineTo(X(T_SWITCH), Y(truthB(T_SWITCH,'right')) - 8); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#5c4a00'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  lines.forEach((s,i) => ctx.fillText(s, bx + 7, by + 6 + i*fs*0.85*1.05));
+  ctx.restore();
+}
+
+/* ============================================================
+   TAB 1 : 2点から予測しよう
+============================================================ */
+const T1 = {A:{t:INIT.A[0], v:INIT.A[1]}, B:{t:INIT.B[0], v:INIT.B[1]}, t:INIT.t, truth:'none', band:false, formula:false};
+const el = id => document.getElementById(id);
+const sAt = el('s-At'), sAv = el('s-Av'), sBt = el('s-Bt'), sBv = el('s-Bv'), sT = el('s-t');
+const cv1 = el('cv1');
+let sameTimer = null;
+
+function valOf(p){ return T1.truth === 'none' ? T1[p].v : truthVal(T1.truth, T1[p].t); }
+function lineNow(){
+  const tA = T1.A.t, tB = T1.B.t, yA = valOf('A'), yB = valOf('B');
+  const a = (yB - yA)/(tB - tA), b = yA - a*tA;
+  return {tA, tB, yA, yB, a, b};
+}
+function fixSameTime(){
+  if(T1.A.t !== T1.B.t) return;
+  T1.B.t = T1.B.t < 24 ? T1.B.t + 1 : T1.B.t - 1;
+  el('msg-same').textContent = 'AとBは別の時刻にしよう（同じ時刻だと直線が1本に決まらない）';
+  clearTimeout(sameTimer);
+  sameTimer = setTimeout(() => { el('msg-same').textContent = ''; }, 4000);
+}
+function setA(t, v){
+  if(t != null) T1.A.t = clamp(Math.round(+t), 0, 24);
+  if(v != null && T1.truth === 'none') T1.A.v = clamp(Math.round(+v*2)/2, 0, 14);
+  fixSameTime(); update1();
+}
+function setB(t, v){
+  if(t != null) T1.B.t = clamp(Math.round(+t), 0, 24);
+  if(v != null && T1.truth === 'none') T1.B.v = clamp(Math.round(+v*2)/2, 0, 14);
+  fixSameTime(); update1();
+}
+function setT(t){ T1.t = clamp(Math.round(+t*2)/2, 0, 24); update1(); }
+function setTruth(k){
+  if(!['none','a','b','c'].includes(k)) return;
+  if(k === 'none' && T1.truth !== 'none'){ T1.A.v = +sAv.value; T1.B.v = +sBv.value; }  // 値スライダーの位置をそのまま使う
+  T1.truth = k;
+  document.querySelectorAll('#truth-btns button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  update1();
+}
+function setBand(on){ T1.band = !!on; el('chk-band').checked = T1.band; update1(); }
+function setFormula(on){ T1.formula = !!on; update1(); }
+
+function valueText(v){                      // 分数表示モードの A・B の値
+  if(Math.abs(v*100 - Math.round(v*100)) < 1e-9) return fmtNum(v);
+  const f = toFrac(v); return f ? ratHTML(f) : fmtNum(v);
+}
+function formulaHTML(L){
+  const {tA, tB, yA, yB} = L;
+  const fA = toFrac(yA), fB = toFrac(yB);
+  const dt = tB - tA;
+  let exact = false, a, b;
+  if(fA && fB){
+    a = Rdiv(Rsub(fB, fA), [dt, 1]);
+    b = Rsub(fA, Rmul(a, [tA, 1]));
+    exact = a[1] <= 48 && b[1] <= 48;
+  }
+  const xi = '<i>x</i>', yi = '<i>y</i>', bi = '<i>b</i>';
+  if(exact){
+    const sA = valueText(yA), sB = valueText(yB);
+    const plainA = sA.includes('frac') ? fmtNum(yA) : sA, plainB = sB.includes('frac') ? fmtNum(yB) : sB;
+    const big = `<span class="frac" data-t="(${plainB} − ${plainA})/(${tB} − ${tA})"><span class="nu">${sB} − ${sA}</span><span class="de">${tB} − ${tA}</span></span>`;
+    const dy = Rsub(fB, fA);
+    let mid = '';
+    if(dy[1] === 1){
+      const r = reduce(dy[0], dt);
+      if(!(r[0] === dy[0] && r[1] === dt)) mid = fracHTML(dy[0], dt) + ' ＝ ';
+    }
+    const f1 = `変化の割合 ＝ ${big} ＝ ${mid}${ratHTML(a)}`;
+    const aTerm = a[0] < 0 ? `(${ratHTML(a)})` : ratHTML(a);
+    const f2 = `${sA} ＝ ${aTerm} × ${tA} ＋ ${bi}　より　${bi} ＝ ${ratHTML(b)}`;
+    let ax = '';
+    if(a[0] === 0) ax = '';
+    else if(a[0] === a[1]) ax = xi;
+    else if(a[0] === -a[1]) ax = MINUS + xi;
+    else ax = ratHTML(a) + xi;
+    let bt = '';
+    if(a[0] === 0) bt = ratHTML(b);
+    else if(b[0] > 0) bt = ' ＋ ' + ratHTML(b);
+    else if(b[0] < 0) bt = ' − ' + ratHTML([-b[0], b[1]]);
+    const f3 = `式　<b>${yi} ＝ ${ax}${bt}</b>`;
+    return [f1, f2, f3];
+  }
+  // 分数にならないとき：a も b もそろえて小数第2位で「約」
+  const av = (yB - yA)/dt, bv = yA - av*tA;
+  const sA = fmtNum(yA), sB = fmtNum(yB);
+  const big = `<span class="frac" data-t="(${sB} − ${sA})/(${tB} − ${tA})"><span class="nu">${sB} − ${sA}</span><span class="de">${tB} − ${tA}</span></span>`;
+  const aS = fmtApprox(av), bS = fmtApprox(bv);
+  const f1 = `変化の割合 ＝ ${big} ＝ ${aS}`;
+  const f2 = `${sA} ＝ ${av < 0 ? '(' + aS + ')' : aS} × ${tA} ＋ ${bi}　より　${bi} ＝ ${bS}`;
+  const f3 = `式　<b>${yi} ＝ ${aS}${xi} ${bv < 0 ? '−' : '＋'} ${fmtApprox(Math.abs(bv))}</b>`;
+  return [f1, f2, f3];
+}
+
+function update1(){
+  const k = T1.truth, L = lineNow();
+  // スライダーと数値
+  sAt.value = T1.A.t; sBt.value = T1.B.t; sT.value = T1.t;
+  sAv.disabled = sBv.disabled = (k !== 'none');
+  sAv.value = L.yA; sBv.value = L.yB;
+  el('v-At').textContent = fmtHour(T1.A.t); el('v-Bt').textContent = fmtHour(T1.B.t);
+  el('v-Av').textContent = fmtNum(L.yA); el('v-Bv').textContent = fmtNum(L.yB);
+  el('v-t').textContent = fmtHour(T1.t);
+  el('msg-truth').hidden = (k === 'none');
+  // 式
+  el('formula').hidden = !T1.formula;
+  el('btn-formula').textContent = T1.formula ? '式をかくす' : '式を見る';
+  const F = formulaHTML(L);
+  el('f1').innerHTML = F[0]; el('f2').innerHTML = F[1]; el('f3').innerHTML = F[2];
+  // 予測
+  const pred = L.a*T1.t + L.b;
+  const lo = Math.min(L.tA, L.tB), hi = Math.max(L.tA, L.tB);
+  const inside = (T1.t >= lo && T1.t <= hi);
+  el('pred-line').innerHTML = `${fmtHour(T1.t)}の予測：<b class="pred">${fmtNum(pred)}</b>（A・Bの<b class="pos">${inside ? '間' : '外側'}</b>）`;
+  // 本当のグラフ・はずれ・判定
+  const vEl = el('verdict1');
+  if(k === 'none'){
+    el('truth-line').hidden = true; vEl.hidden = true;
+  } else {
+    const e = errAt(k, T1.t, pred);
+    let tv;
+    if(k === 'b' && Math.abs(T1.t - T_SWITCH) < EPS){
+      tv = `<b class="truth">${fmtNum(truthB(T1.t,'left'))}</b>（直前）／<b class="truth">${fmtNum(truthB(T1.t,'right'))}</b>（直後）`;
+    } else {
+      tv = `<b class="truth">${fmtNum(truthVal(k, T1.t))}</b>`;
+    }
+    el('truth-line').hidden = false;
+    el('truth-line').innerHTML = `本当の値：${tv}　はずれ：<b class="err">${fmtNum(e)}</b>`;
+    vEl.hidden = false;
+    const ok = isOK(e);
+    vEl.className = 'verdict ' + (ok ? 'yes' : 'no');
+    el('v1-main').textContent = ok ? '◎ はずれ0.5以内：この時刻は1次関数とみなしてよさそう'
+                                   : '△ はずれが0.5をこえた：この時刻は直線の予測では足りない';
+    const subs = [];
+    if(k === 'b' && lo < T_SWITCH && T_SWITCH < hi) subs.push('直線を引いたA・Bのあいだに、冷凍機の切り替え（段差）がはさまっているよ');
+    if(!inside && isOver(e)) subs.push('測った点の外側に離れるほど、はずれが大きくなることがあるよ');
+    el('v1-sub').innerHTML = subs.map(s => `<div>${s}</div>`).join('');
+  }
+  draw1();
+}
+
+function draw1(){
+  const P = frame(cv1, 0); if(!P) return;
+  const {ctx, X, Y} = P;
+  const k = T1.truth, L = lineNow();
+  const f = line(L.a, L.b);
+  const lo = Math.min(L.tA, L.tB), hi = Math.max(L.tA, L.tB);
+  drawAxes(P);
+  // はずれ0.5の帯
+  if(T1.band){
+    ctx.save(); clipPlot(P);
+    ctx.fillStyle = 'rgba(224,134,58,0.12)';
+    ctx.beginPath(); ctx.moveTo(X(X0), Y(f(X0)+TOL)); ctx.lineTo(X(X1), Y(f(X1)+TOL));
+    ctx.lineTo(X(X1), Y(f(X1)-TOL)); ctx.lineTo(X(X0), Y(f(X0)-TOL)); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(224,134,58,0.45)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(X0), Y(f(X0)+TOL)); ctx.lineTo(X(X1), Y(f(X1)+TOL));
+    ctx.moveTo(X(X0), Y(f(X0)-TOL)); ctx.lineTo(X(X1), Y(f(X1)-TOL)); ctx.stroke();
+    ctx.restore();
+  }
+  // 本当のグラフ
+  if(k !== 'none') drawTruth(P, k);
+  // 予測の直線（A・Bの間は実線、外側は破線）
+  if(lo > X0) polyline(P, [X0, lo], f, {color:COL.orange, width:3, dash:[9,7]});
+  polyline(P, [lo, hi], f, {color:COL.orange, width:3});
+  if(hi < X1) polyline(P, [hi, X1], f, {color:COL.orange, width:3, dash:[9,7]});
+  // 予測したい時刻の縦の点線
+  const t = T1.t, pred = f(t);
+  ctx.save(); ctx.strokeStyle = '#9aa5ae'; ctx.lineWidth = 1.3; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(X(t), Y(Y0)); ctx.lineTo(X(t), Y(Y1)); ctx.stroke(); ctx.restore();
+  // はずれ（赤い縦線）
+  let errLabel = null;
+  if(k !== 'none'){
+    const e = errAt(k, t, pred);
+    let tv = truthVal(k, t);
+    if(k === 'b' && Math.abs(t - T_SWITCH) < EPS){
+      const l = truthB(t,'left'), r = truthB(t,'right');
+      tv = Math.abs(pred-l) >= Math.abs(pred-r) ? l : r;
+    }
+    ctx.save(); clipPlot(P);
+    ctx.strokeStyle = COL.red; ctx.lineWidth = 4; ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(X(t), Y(pred)); ctx.lineTo(X(t), Y(tv)); ctx.stroke(); ctx.restore();
+    if(tv >= Y0 && tv <= Y1) dot(P, t, tv, COL.teal, 5);
+    errLabel = {text: 'はずれ ' + fmtNum(e), y: (pred + tv)/2};
+  }
+  // 予測した点
+  if(pred >= Y0 - 0.3 && pred <= Y1 + 0.3) diamond(P, t, clamp(pred, Y0, Y1), COL.orange, 8);
+  // 測定点 A・B
+  const slopeUp = L.a >= 0;
+  [['A', L.tA, L.yA], ['B', L.tB, L.yB]].forEach(([name, tt, yy]) => dot(P, tt, yy, COL.navy, 8));
+  // 文字（点・線の上に重ねる）
+  if(k === 'b') memoNote(P);
+  // 予測のラベルは直線の上側（右上がりなら左上、右下がりなら右上）、はずれのラベルは赤い線の反対側
+  const py = Y(clamp(pred, Y0, Y1));
+  const TP = tag(P, '予測 ' + fmtNum(pred), X(t), py - 10, {color:COL.orange, align: slopeUp ? 'right' : 'left', dx:10});
+  if(errLabel){
+    let TE = placeTag(P, errLabel.text, X(t), Y(clamp(errLabel.y, Y0, Y1)) + P.fs*0.4, {color:COL.red, align: slopeUp ? 'left' : 'right', dx:9});
+    if(overlap(TE.box, TP.box)){          // 予測のラベルと重なるときは、下（または上）へずらす
+      const down = errLabel.y <= pred;
+      const ny = down ? TE.y + (TP.box.y1 - TE.box.y0) + 3 : TE.y - (TE.box.y1 - TP.box.y0) - 3;
+      TE = placeTag(P, errLabel.text, X(t), ny, TE.opt);
+    }
+    drawTag(P, TE);
+  }
+  [['A', L.tA, L.yA], ['B', L.tB, L.yB]].forEach(([name, tt, yy]) => {
+    const txt = `${name}(${signed(String(tt))}, ${fmtNum(yy)})`;
+    const nearTop = yy > Y1 - 1.2;
+    // 直線の上側に置く（右上がりなら左上、右下がりなら右上）。上端に近いときは下側
+    tag(P, txt, X(tt), Y(yy) + (nearTop ? P.fs*1.9 : -11), {color:COL.navy, align: (slopeUp ? 'right' : 'left'), dx:7});
+  });
+}
+
+// スライダー
+sAt.addEventListener('input', () => setA(+sAt.value, null));
+sBt.addEventListener('input', () => setB(+sBt.value, null));
+sAv.addEventListener('input', () => setA(null, +sAv.value));
+sBv.addEventListener('input', () => setB(null, +sBv.value));
+sT.addEventListener('input', () => setT(+sT.value));
+document.querySelectorAll('#truth-btns button').forEach(b => b.addEventListener('click', () => setTruth(b.dataset.k)));
+el('chk-band').addEventListener('change', e => setBand(e.target.checked));
+el('btn-formula').addEventListener('click', () => setFormula(!T1.formula));
+el('btn-reset1').addEventListener('click', () => {
+  T1.A = {t:INIT.A[0], v:INIT.A[1]}; T1.B = {t:INIT.B[0], v:INIT.B[1]}; T1.t = INIT.t;
+  T1.truth = 'none'; T1.formula = false; el('msg-same').textContent = '';
+  document.querySelectorAll('#truth-btns button').forEach(b => b.classList.toggle('active', b.dataset.k === 'none'));
+  update1();
+});
+
+// グラフの上で A・B をドラッグ（時刻は整数、値は0.5刻み。本当のグラフ表示中は時刻だけ）
+let dragging = null;
+function pointerPos(e){ const r = cv1.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function hitPoint(px, py){
+  const P = geom(cv1, 0); if(!P) return null;
+  const L = lineNow(); let best = null, bd = 18;
+  [['A', L.tA, L.yA], ['B', L.tB, L.yB]].forEach(([n, t, y]) => {
+    const d = Math.hypot(P.X(t) - px, P.Y(y) - py); if(d <= bd){ bd = d; best = n; }
+  });
+  return best;
+}
+cv1.addEventListener('pointerdown', e => {
+  const [px, py] = pointerPos(e); const h = hitPoint(px, py);
+  if(h){ dragging = h; cv1.setPointerCapture(e.pointerId); e.preventDefault(); }
+});
+cv1.addEventListener('pointermove', e => {
+  const [px, py] = pointerPos(e);
+  if(!dragging){ cv1.style.cursor = hitPoint(px, py) ? 'grab' : 'default'; return; }
+  const P = geom(cv1, 0); if(!P) return;
+  const t = clamp(Math.round(P.x2v(px)), 0, 24);
+  const v = clamp(Math.round(P.y2v(py)*2)/2, 0, 14);
+  cv1.style.cursor = 'grabbing';
+  if(dragging === 'A') setA(t, T1.truth === 'none' ? v : null); else setB(t, T1.truth === 'none' ? v : null);
+});
+['pointerup','pointercancel'].forEach(ev => cv1.addEventListener(ev, () => { dragging = null; }));
+cv1.addEventListener('touchstart', e => {
+  const t0 = e.touches[0]; if(!t0) return;
+  const r = cv1.getBoundingClientRect();
+  if(hitPoint(t0.clientX - r.left, t0.clientY - r.top)) e.preventDefault();   // 点をつかんだときだけスクロールを止める
+}, {passive:false});
+cv1.addEventListener('touchmove', e => { if(dragging) e.preventDefault(); }, {passive:false});
+
+/* ============================================================
+   TAB 2 : 1次関数とみなせる？
+============================================================ */
+const T2 = {k:'b', h:8, mode:'before18'};
+const cv2 = el('cv2');
+function interp(xs, ys, x){
+  if(x <= xs[0]) return ys[0];
+  for(let i=1; i<xs.length; i++){
+    if(x <= xs[i]) return ys[i-1] + (ys[i]-ys[i-1])*(x-xs[i-1])/(xs[i]-xs[i-1]);
+  }
+  return ys[ys.length-1];
+}
+function lineThrough(x1, y1, x2, y2){ const s = (y2-y1)/(x2-x1); return x => y1 + s*(x-x1); }
+
+function compute2(){
+  const {k, h, mode} = T2;
+  const f = x => truthVal(k, x);
+  const times = []; for(let t=2; t<=18; t+=h) times.push(t);
+  const R = {k, h, mode, times, end:18, used:times.slice(), unused:[], added6:false, pieces:[]};
+  let errFn;
+  if(mode === 'before18'){
+    R.used = times.filter(t => t <= 10); R.unused = times.filter(t => t > 10);
+    R.end = 10 + h;
+    const ys = R.used.map(f);
+    const ext = lineThrough(10 - h, f(10 - h), 10, f(10));
+    const pred = x => x <= 10 ? interp(R.used, ys, x) : ext(x);
+    errFn = x => errAt(k, x, pred(x));
+    R.pieces.push({xs: R.used.slice(), f: pred, dash:false});
+    R.pieces.push({xs: [10, R.end], f: pred, dash:true});
+  } else if(mode === 'between'){
+    const ys = times.map(f);
+    const pred = x => interp(times, ys, x);
+    errFn = x => errAt(k, x, pred(x));
+    R.pieces.push({xs: times.slice(), f: pred, dash:false});
+  } else {                                   // split（(b) だけ）
+    const pts = Array.from(new Set(times.concat(h === 8 ? [6] : []))).sort((a,b) => a-b);
+    R.used = pts; R.added6 = (h === 8);
+    const ys = pts.map(x => truthB(x,'right'));
+    const before = pts.filter(x => x < T_SWITCH).slice(-2);
+    const after = pts.filter(x => x > T_SWITCH).slice(0, 2);
+    const lb = lineThrough(before[0], truthB(before[0]), before[1], truthB(before[1]));
+    const la = lineThrough(after[0], truthB(after[0]), after[1], truthB(after[1]));
+    const predL = x => x <= before[0] ? interp(pts, ys, x) : lb(x);
+    const predR = x => x >= after[1] ? interp(pts, ys, x) : la(x);
+    errFn = x => errSplitAt(x, predL, predR);
+    R.pieces.push({xs: pts.filter(x => x < T_SWITCH).concat([T_SWITCH]), f: predL, dash:false});
+    R.pieces.push({xs: [T_SWITCH].concat(pts.filter(x => x > T_SWITCH)), f: predR, dash:false});
+  }
+  // 格子点 x_i＝2＋i×0.01 ではずれを求める
+  const N = Math.round((R.end - 2)/0.01);
+  let over = 0, maxE = 0; const okRuns = [], overRuns = []; let okS = null, ovS = null, prev = null;
+  for(let i=0; i<=N; i++){
+    const x = 2 + i*0.01; const e = errFn(x);
+    if(e > maxE) maxE = e;
+    if(isOver(e)){ over++; if(ovS === null) ovS = x; if(okS !== null){ okRuns.push([okS, prev]); okS = null; } }
+    else { if(okS === null) okS = x; if(ovS !== null){ overRuns.push([ovS, prev]); ovS = null; } }
+    prev = x;
+  }
+  if(okS !== null) okRuns.push([okS, prev]);
+  if(ovS !== null) overRuns.push([ovS, prev]);
+  R.overCount = over; R.hours = over*0.01; R.maxErr = maxE; R.okRuns = okRuns; R.overRuns = overRuns;
+  return R;
+}
+function fmtEnd(x){
+  const half = Math.round(x*2)/2;
+  if(Math.abs(x - half) <= 0.01 + 1e-9) return signed(String(half));
+  return '約' + x.toFixed(1);
+}
+function fmtHours(hours, count){
+  if(count === 0) return '0時間';
+  const half = Math.round(hours*2)/2;
+  if(Math.abs(hours - half) <= 0.025) return signed(String(half)) + '時間';
+  return '約' + (Math.round(hours*10)/10).toFixed(1) + '時間';
+}
+function setTruth2(k){
+  if(!['a','b','c'].includes(k)) return;
+  T2.k = k;
+  if(k !== 'b' && T2.mode === 'split') T2.mode = 'between';
+  update2();
+}
+function setEvery(h){ h = +h; if(![8,4,2].includes(h)) return; T2.h = h; update2(); }
+function setMode2(m){
+  if(!['before18','between','split'].includes(m)) return;
+  if(m === 'split' && T2.k !== 'b') return;
+  T2.mode = m; update2();
+}
+function update2(){
+  document.querySelectorAll('#truth2-btns button').forEach(b => b.classList.toggle('active', b.dataset.k === T2.k));
+  document.querySelectorAll('#every-btns button').forEach(b => b.classList.toggle('active', +b.dataset.h === T2.h));
+  document.querySelectorAll('#mode2-radios label').forEach(lb => {
+    const inp = lb.querySelector('input');
+    inp.checked = (inp.value === T2.mode);
+    lb.classList.toggle('active', inp.checked);
+  });
+  const splitOK = (T2.k === 'b');
+  const ls = el('lbl-split'); ls.classList.toggle('disabled', !splitOK);
+  ls.querySelector('input').disabled = !splitOK;
+  ls.title = splitOK ? '' : '(b) の段差で試そう';
+
+  const R = compute2();
+  const hTxt = fmtHours(R.hours, R.overCount);
+  el('r2-hours').innerHTML = `はずれが0.5をこえる時間：<b class="${R.overCount === 0 ? 'zero' : ''}">${hTxt}${R.overCount === 0 ? ' 🎉' : ''}</b>`;
+  const okTxt = R.okRuns.map(([s,e]) => `<span style="white-space:nowrap">${Math.abs(s-e) < 1e-9 ? fmtEnd(s) + '時' : fmtEnd(s) + '〜' + fmtEnd(e) + '時'}</span>`).join('、') || 'なし';
+  el('r2-ok').innerHTML = `1次関数とみなしてよい変域（はずれ0.5以内）：<span class="ok">${okTxt}</span>`;
+  el('r2-points').innerHTML = `この画面（2時〜18時）で使った測定点：<span style="white-space:nowrap">${R.used.length}個${R.added6 ? '（6時に1回追加）' : ''}</span>`;
+  el('r2-added').hidden = !R.added6;
+  el('r2-max').textContent = `いちばん大きいはずれ：${fmtNum(R.maxErr)}`;
+  el('r2-note-between').hidden = !(T2.k === 'b' && T2.mode === 'between');
+  el('r2-note-split').hidden = !(T2.mode === 'split' && R.overCount === 0);
+  const v = el('verdict2');
+  if(R.overCount === 0){
+    v.className = 'verdict yes';
+    el('v2-main').textContent = `◎ 2時から${signed(String(R.end))}時まで、どこでも1次関数とみなしてよい`;
+  } else {
+    v.className = 'verdict no';
+    el('v2-main').textContent = '△ はずれが大きい時間がある。測り方や変域の分け方を変えてみよう';
+  }
+  T2.last = R;
+  draw2();
+}
+function draw2(){
+  const strip = 12;
+  const P = frame(cv2, strip + 4); if(!P) return;
+  const {ctx, X, Y} = P;
+  const R = T2.last || compute2();
+  drawAxes(P);
+  // はずれ > 0.5 の時間帯（赤10%）
+  ctx.save(); clipPlot(P);
+  ctx.fillStyle = 'rgba(192,71,58,0.10)';
+  R.overRuns.forEach(([s,e]) => ctx.fillRect(X(s-0.005), Y(Y1), X(e+0.005)-X(s-0.005), Y(Y0)-Y(Y1)));
+  ctx.restore();
+  // 使わない測定時刻（灰色の縦点線だけ）
+  ctx.save(); ctx.strokeStyle = COL.gray; ctx.lineWidth = 1.6; ctx.setLineDash([3,4]);
+  R.unused.forEach(t => { ctx.beginPath(); ctx.moveTo(X(t), Y(Y0)); ctx.lineTo(X(t), Y(Y1)); ctx.stroke(); });
+  ctx.restore();
+  // 本当のグラフ
+  drawTruth(P, R.k);
+  // 予測（折れ線）
+  R.pieces.forEach(pc => {
+    const xs = [];
+    for(let i=0; i<pc.xs.length-1; i++){ const a = pc.xs[i], b = pc.xs[i+1]; const n = Math.max(1, Math.ceil((b-a)/0.25)); for(let j=0;j<n;j++) xs.push(a + (b-a)*j/n); }
+    xs.push(pc.xs[pc.xs.length-1]);
+    polyline(P, xs, pc.f, {color:COL.orange, width:3, dash: pc.dash ? [9,7] : []});
+  });
+  // 評価していない時刻を薄い灰色で覆う
+  ctx.save(); ctx.fillStyle = 'rgba(120,130,140,0.16)';
+  ctx.fillRect(X(X0), Y(Y1), X(2)-X(X0), Y(Y0)-Y(Y1));
+  ctx.fillRect(X(R.end), Y(Y1), X(X1)-X(R.end), Y(Y0)-Y(Y1));
+  ctx.restore();
+  // 測定点
+  R.used.forEach(t => {
+    const is6 = R.added6 && t === 6;
+    dot(P, t, truthVal(R.k, t), is6 ? COL.purple : COL.navy, 7);
+  });
+  if(R.added6) tag(P, '6時に1回追加', X(6), Y(truthB(6)) + P.fs*1.8, {color:COL.purple, align:'center', scale:0.9});
+  // 横軸の下の変域の帯（緑＝0.5以内、赤＝こえる）
+  const y0 = Y(Y0) + 3;
+  ctx.save();
+  R.okRuns.forEach(([s,e]) => { ctx.fillStyle = COL.green; ctx.fillRect(X(s), y0, Math.max(2, X(e)-X(s)), strip); });
+  R.overRuns.forEach(([s,e]) => { ctx.fillStyle = 'rgba(192,71,58,0.55)'; ctx.fillRect(X(s), y0, Math.max(2, X(e)-X(s)), strip); });
+  ctx.restore();
+}
+document.querySelectorAll('#truth2-btns button').forEach(b => b.addEventListener('click', () => setTruth2(b.dataset.k)));
+document.querySelectorAll('#every-btns button').forEach(b => b.addEventListener('click', () => setEvery(+b.dataset.h)));
+document.querySelectorAll('#mode2-radios input').forEach(inp => inp.addEventListener('change', () => { if(inp.checked) setMode2(inp.value); }));
+el('btn-reset2').addEventListener('click', () => { T2.k = 'b'; T2.h = 8; T2.mode = 'before18'; update2(); });
+
+/* ============================================================
+   起動
+============================================================ */
+let resizeTimer = null;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { draw1(); draw2(); }, 60); });
+update1(); update2(); setTab(1);
+</script>
+</body>
+</html>

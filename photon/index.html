@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>光子すごろく ― 多数回の試行による確率シミュレータ</title>
+<style>
+  :root{
+    --blue:#2b7de9; --blue-d:#1c5fbf; --ink:#2c3e50; --line:#dfe4ea;
+    --orange:#e8833a; --green:#27ae60; --bg:#eef2f5;
+    --lA:#e0863a; --lB:#2b7de9; --lC:#3a9a5f; --red:#c0473a;
+    --obs:#17738a; --back:#8a8a8a; --photon:#f2c230; --photon-d:#b8860b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Helvetica Neue",Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;
+    background:var(--bg); color:var(--ink); margin:0; padding:14px;
+  }
+  .container{max-width:1080px; margin:0 auto; background:#fff; border-radius:12px;
+    box-shadow:0 6px 18px rgba(0,0,0,.09); padding:18px 20px 24px;}
+  .head{text-align:center; margin-bottom:6px;}
+  .head h1{font-size:1.35rem; color:var(--ink); margin:2px 0;}
+  .head .sub{font-size:.8rem; color:#7f8c8d;}
+  /* タブ */
+  .tabs{display:flex; justify-content:center; gap:6px; margin:12px 0 16px; border-bottom:2px solid var(--line);}
+  .tab-btn{background:none; border:none; padding:10px 18px; font-size:1rem; font-weight:bold;
+    color:#8a99a8; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:.2s;}
+  .tab-btn:hover{color:var(--blue);}
+  .tab-btn.active{color:var(--blue); border-bottom-color:var(--blue);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .desc{background:#f4f8fe; border-left:4px solid var(--blue); padding:10px 12px;
+    font-size:.9rem; line-height:1.6; margin-bottom:14px; border-radius:0 6px 6px 0;}
+  .desc b{color:var(--blue-d);}
+  .grid{display:flex; flex-wrap:wrap; gap:18px;}
+  .col-ctrl{flex:1.1; min-width:360px;}
+  .col-view{flex:1.4; min-width:380px; display:flex; flex-direction:column; gap:12px;}
+  /* スライダー */
+  .slider-row{margin-bottom:11px;}
+  .slider-row label{display:flex; justify-content:space-between; font-size:.9rem; font-weight:bold; margin-bottom:3px; gap:8px;}
+  .slider-row label .val{color:var(--blue-d); font-family:"Courier New",monospace; white-space:nowrap;}
+  input[type=range]{width:100%; accent-color:var(--blue); height:22px;}
+  .hint{font-size:.78rem; color:#8a99a8; margin-top:-2px;}
+  .ctrl-label{font-size:.9rem; font-weight:bold; margin:0 0 5px;}
+  /* ビュー枠 */
+  .view-box{position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff;}
+  .view-title{position:absolute; top:8px; left:10px; z-index:5; background:rgba(255,255,255,.85);
+    padding:2px 8px; border-radius:4px; font-size:.8rem; font-weight:bold; color:var(--ink);}
+  canvas{display:block; width:100%;}
+  /* 数の表示 */
+  .match-box{background:#f8fafb; border:1px solid var(--line); border-radius:8px; padding:9px 12px; margin-top:4px;}
+  .stat{display:flex; align-items:baseline; gap:5px; font-size:.86rem; flex-wrap:wrap;}
+  .stat + .stat{margin-top:3px;}
+  .stat b{font-family:"Courier New",monospace; font-size:1rem;}
+  .stat .grp{white-space:nowrap;}
+  .stat .obs{color:var(--obs);} .stat .back{color:var(--back);}
+  .stat.big{font-size:1rem; font-weight:bold; margin-top:5px;}
+  .stat.big b{font-size:1.35rem; color:var(--lA);}
+  .stat .sep{flex:0 0 10px;}
+  .msg{margin-top:7px; font-size:.85rem; min-height:2.9em; font-weight:bold; line-height:1.45;}
+  .msg .l2{display:block; color:var(--ink);}
+  .btn-row{display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; align-items:center;}
+  button.act{flex:1; min-width:110px; padding:9px; border:none; border-radius:7px; font-size:.9rem;
+    font-weight:bold; cursor:pointer; color:#fff; background:var(--blue); transition:.15s;}
+  button.act:hover{background:var(--blue-d);}
+  button.act:disabled{opacity:.45; cursor:default;}
+  button.ghost{background:#95a5a6;}
+  button.ghost:hover{background:#7f8c8d;}
+  button.act.sm{min-width:92px; font-size:.82rem; padding:8px 4px; white-space:nowrap;}
+  button.act.go{background:#17738a;} button.act.go:hover{background:#115a6c;}
+  .progress{font-size:.85rem; font-weight:bold; color:var(--red); min-height:1.1em; margin-top:3px;}
+  select{font-size:.88rem; padding:5px 6px; border-radius:6px; border:1px solid #cbd4dd; background:#fff; color:var(--ink);}
+  .speed{display:flex; align-items:center; gap:6px; font-size:.85rem; font-weight:bold; white-space:nowrap; width:100%;}
+  .speed select{flex:0 1 auto; min-width:0;}
+  .speed .small{font-weight:normal; white-space:normal;}
+  /* 光の種類ボタン */
+  .modebtns{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px;}
+  .modebtns button{flex:1; min-width:96px; padding:6px 5px; border:2px solid var(--line); background:#fff;
+    border-radius:8px; font-size:.85rem; font-weight:bold; color:var(--ink); cursor:pointer; transition:.15s; line-height:1.3;}
+  .modebtns button .lt{display:block; font-size:.95rem;}
+  .modebtns button .ls{display:block; font-size:.72rem; font-weight:normal; color:#5d6d7e;}
+  .modebtns button .dot{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:0;}
+  .modebtns button.active{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .modebtns button:disabled{opacity:.5; cursor:default;}
+  .quick{display:flex; gap:5px; margin-top:4px;}
+  .quick button{flex:1; padding:4px 2px; border:1.5px solid var(--line); background:#fff; border-radius:6px;
+    font-size:.8rem; font-weight:bold; color:var(--ink); cursor:pointer;}
+  .quick button:hover{border-color:var(--blue);}
+  .quick button.on{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .sub2{font-size:.8rem; color:#5d6d7e; margin-top:1px;}
+  /* 途中の記録 */
+  .miles-cap{font-size:.85rem; font-weight:bold; margin:12px 0 4px;}
+  .tblwrap{overflow-x:auto;}
+  table.miles{border-collapse:collapse; width:100%; font-size:.85rem; text-align:center;}
+  table.miles th, table.miles td{border:1px solid #cfd8e0; padding:5px 3px; white-space:nowrap;}
+  table.miles th{background:#f1f5f8; font-weight:bold;}
+  table.miles td{font-family:"Courier New",monospace; font-weight:bold; font-size:.95rem; color:var(--ink);}
+  table.miles td.got{background:#fff7ee;}
+  .verdict{padding:12px 14px; border-radius:8px; font-size:1rem; font-weight:bold; margin-top:10px; line-height:1.5;}
+  .verdict.no{background:#fdecea; color:#c0392b; border:1px solid #f5b7b1;}
+  .verdict.yes{background:#eafaf1; color:#1e8449; border:1px solid #a9dfbf;}
+  .small{font-size:.82rem; font-weight:normal; color:#5d6d7e;}
+  .footer{text-align:center; font-size:.72rem; color:#aab3bd; margin-top:16px;}
+  /* 図の下の操作 */
+  .chart-opts{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:6px 10px 8px; border-top:1px solid var(--line); background:#fafbfc;}
+  .tog{padding:4px 9px; border:1.5px solid var(--line); background:#fff; border-radius:6px; font-size:.8rem; font-weight:bold; color:var(--ink); cursor:pointer;}
+  .tog.on{border-color:var(--blue); background:#eaf3fe; color:var(--blue-d);}
+  .chk{font-size:.8rem; color:#5d6d7e; display:flex; align-items:center; gap:4px; cursor:pointer;}
+  table.cmp{border-collapse:collapse; font-size:.85rem;}
+  table.cmp td{padding:3px 8px; border-bottom:1px dashed #dfe4ea; white-space:nowrap;}
+  table.cmp td.v{font-family:"Courier New",monospace; font-weight:bold;}
+  .cmpbox{background:#f8fafb; border:1px solid var(--line); border-radius:8px; padding:8px 12px;}
+  .cmpbox .cap{font-size:.8rem; font-weight:bold; margin-bottom:3px;}
+  /* クラスの結果 */
+  details.classbox{margin-top:16px; border:1px solid var(--line); border-radius:8px; background:#fcfcfd;}
+  details.classbox > summary{cursor:pointer; padding:10px 14px; font-weight:bold; font-size:.95rem; color:var(--ink); background:#f4f8fe; border-radius:8px;}
+  details.classbox[open] > summary{border-radius:8px 8px 0 0; border-bottom:1px solid var(--line);}
+  .classinner{padding:10px 14px 14px;}
+  .pairs{display:grid; grid-template-columns:repeat(auto-fill,minmax(245px,1fr)); gap:4px 14px; margin:8px 0;}
+  .pairrow{font-size:.84rem; display:flex; align-items:center; gap:3px; white-space:nowrap;}
+  .pairrow .pk{display:inline-block; min-width:4.2em; font-weight:bold;}
+  .pairrow input{width:3.6em; font-size:.88rem; padding:2px 3px; border:1px solid #cbd4dd; border-radius:4px; text-align:right;}
+  .pairrow input.bad{border-color:var(--red); background:#fdecea;}
+  .ncount input{width:4em; font-size:.9rem; padding:3px; border:1px solid #cbd4dd; border-radius:4px;}
+  .classsum{font-size:1rem; font-weight:bold; margin:8px 0 6px;}
+  .classsum b{font-family:"Courier New",monospace; color:var(--lA); font-size:1.15rem;}
+  .classerr{color:var(--red); font-size:.85rem; font-weight:bold; min-height:1.1em;}
+  .twoview{display:flex; gap:12px; flex-wrap:wrap;} .twoview .view-box{flex:1; min-width:280px;}
+  /* タブ② の棒 */
+  .bars{padding:36px 14px 10px;}
+  .barrow{display:flex; align-items:center; gap:8px; margin:6px 0;}
+  .barrow .bl{flex:0 0 3.2em; font-weight:bold; font-size:.9rem;}
+  .bartrack{position:relative; flex:1; height:24px; background:#edf1f4; border-radius:5px;}
+  .bar{position:absolute; left:0; top:0; bottom:0; width:0; border-radius:5px; transition:width .2s;}
+  .guide{position:absolute; top:-4px; bottom:-4px; width:0; border-left:2px dashed #333; display:none;}
+  .guide span{position:absolute; top:-15px; left:-14px; font-size:.7rem; font-weight:bold; color:#333; background:rgba(255,255,255,.8); padding:0 2px;}
+  .barrow .bv{flex:0 0 3.6em; font-family:"Courier New",monospace; font-weight:bold; font-size:1rem; text-align:right;}
+  .ticktrack{position:relative; flex:1; height:14px; font-size:.7rem; color:#8a99a8;}
+  .ticktrack span{position:absolute; top:0; transform:translateX(-50%);}
+  .bartext{font-size:.88rem; padding:6px 14px 10px; line-height:1.6;}
+  .bartext b{font-family:"Courier New",monospace;}
+  .seedtag{color:#7f8c8d;}
+  @media (max-width:600px){
+    body{padding:6px;}
+    .container{padding:12px 10px 18px; border-radius:8px;}
+    .tab-btn{padding:8px 8px; font-size:.9rem;}
+    .col-ctrl,.col-view{min-width:100%;}
+    .pairs{grid-template-columns:1fr;}
+    .btn-row button.act.sm{min-width:40%;}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="head">
+    <h1>光子すごろく</h1>
+    <div class="sub">中学1年 数学　東京書籍「新編 新しい数学1」7章 データを活用して判断しよう 3節 ことがらの起こりやすさ p.242〜245 ／ 多数回の試行によって得られる確率</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="play">① 光子すごろく</button>
+    <button class="tab-btn" data-tab="compare">② 散乱されやすさを変える</button>
+  </div>
+
+  <!-- ============ TAB 1 : 光子すごろく ============ -->
+  <div class="panel active" id="panel-play">
+    <div class="desc">宇宙のガスの雲の中を進む光の粒（<b>光子</b>）を、<b>3マスのすごろく</b>に単純化しました。光子は真ん中から<b>観測者側向き</b>に出発。さいころの目が <b>1〜4 ならそのまま1マス</b>、<b style="color:#c0473a">5・6 なら散乱</b>して向きを反対にしてから1マス進みます。雲の外に出たら1回おわり。何回もくり返して、<b>観測者側に出た割合（相対度数）</b>がどうなるか調べよう。（本物の雲は立体です。ここでは一直線に大きく単純化しています）</div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="ctrl-label">光の種類</div>
+        <div class="modebtns" id="lightbtns">
+          <button data-light="A" class="active"><span class="lt"><i class="dot" style="background:#e0863a"></i>光A</span><span class="ls">散乱されやすい光<br>（5・6で散乱）</span></button>
+          <button data-light="B"><span class="lt"><i class="dot" style="background:#2b7de9"></i>光B</span><span class="ls">散乱されにくい光<br>（6だけで散乱）</span></button>
+          <button data-light="C"><span class="lt"><i class="dot" style="background:#3a9a5f"></i>光C</span><span class="ls">散乱されない光<br>（散乱なし）</span></button>
+        </div>
+        <div class="btn-row">
+          <button class="act go" id="b-step">🎲 1手ずつ</button>
+          <button class="act" id="b-one">▶ 1回ふやす</button>
+          <button class="act" id="b-ten">10回ふやす</button>
+        </div>
+        <div class="btn-row" style="margin-top:6px">
+          <label class="speed">アニメーションの速さ
+            <select id="speed">
+              <option value="600">ゆっくり（1マス600ms）</option>
+              <option value="300" selected>ふつう（300ms）</option>
+              <option value="80">はやい（80ms）</option>
+            </select>
+          </label>
+        </div>
+        <div class="btn-row">
+          <button class="act sm bulk" data-n="100">合計100回まで</button>
+          <button class="act sm bulk" data-n="1000">合計1000回まで</button>
+          <button class="act sm bulk" data-n="10000">合計1万回まで</button>
+          <button class="act sm bulk" data-n="100000">合計10万回まで</button>
+        </div>
+        <div class="btn-row">
+          <button class="act ghost sm" id="b-reset1">この光をリセット</button>
+          <button class="act ghost sm" id="b-resetall">全部リセット</button>
+        </div>
+        <div class="progress" id="prog1"></div>
+
+        <div class="match-box">
+          <div class="stat"><span>ためした回数</span><b id="t-N">0</b><span>回</span></div>
+          <div class="stat"><span class="grp">観測者側に出た回数 <b class="obs" id="t-k">0</b> 回</span><span class="sep"></span><span class="grp">反対側に出た回数 <b class="back" id="t-b">0</b> 回</span></div>
+          <div class="stat big"><span>相対度数（観測者側）</span><b id="t-rf">―</b><span class="small" id="t-frac"></span></div>
+          <div class="small" id="t-m" style="font-size:.76rem">散乱されてから観測者側に出た回数　0 回（観測者側のうち ―）</div>
+          <div class="msg" id="msg1"></div>
+        </div>
+
+        <div class="miles-cap">📋 途中の記録（その回数になったときの相対度数を自動で記録）</div>
+        <div class="tblwrap">
+          <table class="miles">
+            <tr><th>ためした回数</th><th>20回</th><th>100回</th><th>1000回</th><th>1万回</th><th>10万回</th></tr>
+            <tr><th>相対度数</th><td id="ml-20">―</td><td id="ml-100">―</td><td id="ml-1000">―</td><td id="ml-10000">―</td><td id="ml-100000">―</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">🎲 雲の中のようす</div>
+          <canvas id="cvBoard" style="height:200px"></canvas>
+        </div>
+        <div class="view-box">
+          <div class="view-title">📈 相対度数の変わり方</div>
+          <canvas id="cvChart1" style="height:260px"></canvas>
+          <div class="chart-opts">
+            <button class="tog on" id="ax-lin">横軸：ふつう</button>
+            <button class="tog" id="ax-log">横軸：はじめを広げる（対数）</button>
+            <label class="chk"><input type="checkbox" id="guide1">目安の線を表示（先生用）</label>
+          </div>
+        </div>
+        <div class="cmpbox" id="cmpbox" hidden>
+          <div class="cap">光の比べ表（記録がある光）</div>
+          <table class="cmp" id="cmptable"></table>
+        </div>
+      </div>
+    </div>
+
+    <details class="classbox" id="classbox">
+      <summary>👩‍🏫 クラスの結果を入れる（先生用）</summary>
+      <div class="classinner">
+        <div class="btn-row" style="margin-top:0">
+          <label class="ncount small" style="font-weight:bold;color:var(--ink)">ペアの数 <input type="number" id="npairs" min="1" max="20" value="16"></label>
+          <button class="act sm" id="b-class-show">グラフに表示</button>
+          <button class="act sm" id="b-class-ex" style="white-space:normal">例のクラスを入れる（架空）</button>
+          <button class="act ghost sm" id="b-class-clear">クリア</button>
+        </div>
+        <div class="pairs" id="pairs"></div>
+        <div class="classerr" id="classerr"></div>
+        <div class="classsum" id="classsum">クラス合計：観測者側 ― 回 ÷ ― 回 ＝ ―</div>
+        <div class="twoview">
+          <div class="view-box">
+            <div class="view-title">ペアごとの相対度数</div>
+            <canvas id="cvClassDots" style="height:210px"></canvas>
+          </div>
+          <div class="view-box">
+            <div class="view-title">合わせた相対度数</div>
+            <canvas id="cvClassCum" style="height:210px"></canvas>
+          </div>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ============ TAB 2 : 散乱されやすさを変える ============ -->
+  <div class="panel" id="panel-compare">
+    <div class="desc">散乱の起こりやすさや雲の厚さを変えて、<b>2種類の光</b>が観測者側に出る割合をくらべよう。ルールはタブ①と同じ（散乱したら向きを反対にして1マス進む）。光子は雲の<b>真ん中</b>から観測者側向きに出発します。</div>
+    <div class="grid">
+      <div class="col-ctrl">
+        <div class="slider-row">
+          <label>雲の厚さ<span class="val" id="v-L">3 マス</span></label>
+          <input type="range" id="s-L" min="1" max="15" step="2" value="3">
+          <div class="hint" style="display:flex;justify-content:space-between"><span>← うすい雲</span><span>厚い雲 →</span></div>
+        </div>
+        <div class="slider-row">
+          <label><span><i class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e0863a"></i> 光A（オレンジ）の散乱の起こりやすさ</span><span class="val" id="v-A">33%</span></label>
+          <input type="range" id="s-A" min="0" max="30" step="1" value="20" style="accent-color:#e0863a">
+          <div class="sub2" id="sub-A">（さいころの 5・6 と同じ）</div>
+          <div class="quick" data-for="A"><button data-v="0">なし</button><button data-v="10">6だけ</button><button data-v="20">5・6</button><button data-v="30">4・5・6</button></div>
+        </div>
+        <div class="slider-row">
+          <label><span><i class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2b7de9"></i> 光B（青）の散乱の起こりやすさ</span><span class="val" id="v-B">17%</span></label>
+          <input type="range" id="s-B" min="0" max="30" step="1" value="10">
+          <div class="sub2" id="sub-B">（さいころの 6 だけ と同じ）</div>
+          <div class="quick" data-for="B"><button data-v="0">なし</button><button data-v="10">6だけ</button><button data-v="20">5・6</button><button data-v="30">4・5・6</button></div>
+        </div>
+        <div class="hint">散乱の起こりやすさは 50% まで。これより大きいと「行ったり来たり」するだけの不自然なすごろくになるため。</div>
+        <div class="btn-row">
+          <button class="act sm bulk2" data-n="1000">合計1000回まで</button>
+          <button class="act sm bulk2" data-n="10000">合計1万回まで</button>
+          <button class="act sm bulk2" data-n="100000">合計10万回まで</button>
+          <button class="act ghost sm" id="b-reset2">リセット</button>
+        </div>
+        <div class="progress" id="prog2"></div>
+        <label class="chk" style="margin-top:2px"><input type="checkbox" id="guide2">計算の目安を表示（先生用）</label>
+        <div class="verdict no" id="verdict2">
+          <span id="verdict-main">回数が少ないと、2つの光の差はゆれて見えることがあります。1万回にしてみよう。</span>
+          <span class="small" id="verdict-sub"></span>
+        </div>
+      </div>
+      <div class="col-view">
+        <div class="view-box">
+          <div class="view-title">🎲 雲のようす</div>
+          <canvas id="cvBoard2" style="height:130px"></canvas>
+        </div>
+        <div class="view-box">
+          <div class="view-title">📊 観測者側に出た割合</div>
+          <div class="bars">
+            <div class="barrow"><span class="bl" style="color:#e0863a">光A</span><div class="bartrack"><div class="bar" id="bar-A" style="background:#e0863a"></div><div class="guide" id="g-A"><span></span></div></div><span class="bv" id="bv-A">―</span></div>
+            <div class="barrow"><span class="bl" style="color:#2b7de9">光B</span><div class="bartrack"><div class="bar" id="bar-B" style="background:#2b7de9"></div><div class="guide" id="g-B"><span></span></div></div><span class="bv" id="bv-B">―</span></div>
+            <div class="barrow" style="margin:0"><span class="bl"></span><div class="ticktrack"><span style="left:0">0</span><span style="left:50%">0.5</span><span style="left:100%">1</span></div><span class="bv"></span></div>
+          </div>
+          <div class="bartext" id="bartext">光A：―　光B：―　差：―</div>
+        </div>
+        <div class="view-box">
+          <div class="view-title">📈 相対度数の変わり方（横軸は対数）</div>
+          <canvas id="cvChart2" style="height:220px"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">光子すごろくシミュレータ／中学1年 データの活用 第9時「起こりやすさの表し方」用<span id="seedtag"></span></div>
+</div>
+
+<script id="core">
+/* ============================================================
+   コア（DOM を使わない。検証スクリプトからも読み込む）
+============================================================ */
+// 散乱の目（光A：5・6、光B：6だけ、光C：散乱なし）
+const SCATTER_FACES = {A:[5,6], B:[6], C:[]};
+// 例のクラス（架空）：各ペアの観測者側の回数（各20回）
+// 出典：data/例_クラス16ペア×20回_集計.csv の observer 列（seed 20260917）。合計 184/320 = 0.575
+const EXAMPLE_CLASS = [15,13,11,12,13,12,11,12,13,13,11,12,10,8,10,8];
+const EXAMPLE_TRIALS = 20;
+// 途中の記録を取る回数（ワークシート枠6の表と同じ並び）
+const MILESTONES = [20,100,1000,10000,100000];
+// 目安の線（反転ルール・真ん中スタートの式から。3マス：光A 3/5、光B 3/4、光C 1）
+const GUIDE1 = {A:0.6, B:0.75, C:1};
+
+// 乱数：既定は Math.random。?seed=整数 のときは mulberry32
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let rand = Math.random;
+function setSeed(s){ rand = (s === null || s === undefined) ? Math.random : mulberry32(s >>> 0); }
+function rollDie(){ return 1 + Math.floor(rand() * 6); }
+
+// タブ①：1回の試行（反転ルール）。順番は「出た目 → 散乱したか → 向き → 1マス進む」
+function trial(light){
+  let x = 2, d = +1, rolls = 0, sc = 0, r = 0, s = false;
+  const path = [2], faces = SCATTER_FACES[light];
+  while (1 <= x && x <= 3){
+    r = rollDie(); rolls++;
+    s = faces.includes(r);
+    if (s){ d = -d; sc++; }
+    x += d; path.push(x);
+  }
+  return {obs: x === 4, rolls, sc, path, dir: d, lastDie: r, lastSc: s};
+}
+
+// タブ②：雲の厚さ L（奇数）、1手ごとの散乱の起こりやすさ p
+function trial2(L, p){
+  let x = (L + 1) / 2, d = +1;
+  while (1 <= x && x <= L){ if (rand() < p) d = -d; x += d; }
+  return x === L + 1;
+}
+// 目安の式 P = (1+(s−2)p)/(1+(L−1)p)、s=(L+1)/2
+function theoryP(L, p){ const s = (L + 1) / 2; return (1 + (s - 2) * p) / (1 + (L - 1) * p); }
+
+// 整数の比を小数第 digits 位で四捨五入した文字列（浮動小数の丸め誤差を避ける）
+function fmtRatio(k, N, digits){
+  if (!N) return '―';
+  const m = Math.pow(10, digits);
+  const q = Math.floor((2 * k * m + N) / (2 * N));
+  return (q / m).toFixed(digits);
+}
+
+// 光ごとの記録
+function newLight(){ return {N:0, k:0, m:0, pts:[], lastPtN:0, miles:{}, recent:[], cur:null, last:null}; }
+function commitTrial(st, res){
+  st.N++;
+  if (res.obs){ st.k++; if (res.sc > 0) st.m++; }
+  st.recent.push(res.obs); if (st.recent.length > 20) st.recent.shift();
+  if (MILESTONES.indexOf(st.N) >= 0) st.miles[st.N] = st.k;   // その回数に達した瞬間の観測者側の回数
+  // 折れ線の点：N≦200 は毎回、その先は前の点から1%以上ふえたとき（最後の点は描くときに足す）
+  if (st.N <= 200 || st.N >= st.lastPtN * 1.01){ st.pts.push([st.N, st.k / st.N]); st.lastPtN = st.N; }
+}
+function newPair(){ return {N:0, k:0, pts:[], lastPtN:0}; }
+function commit2(st, obs){
+  st.N++; if (obs) st.k++;
+  if (st.N <= 200 || st.N >= st.lastPtN * 1.01){ st.pts.push([st.N, st.k / st.N]); st.lastPtN = st.N; }
+}
+// タブ②の判定（実際に出た相対度数の差で判定）
+function judge2(L, vA, vB, A, B){
+  const N = A.N, out = {cls:'no', main:'', subs:[]};
+  const pA = vA / 60, pB = vB / 60;
+  if (N < 1000){
+    out.main = '回数が少ないと、2つの光の差はゆれて見えることがあります。1万回にしてみよう。';
+  } else if (vA === vB){
+    out.cls = 'yes';
+    out.main = '散乱の起こりやすさが同じなので、ほぼ同じ割合になる（ちがいは偶然のゆれ）。';
+  } else {
+    const X = vA > vB ? A : B, Y = vA > vB ? B : A, nameX = vA > vB ? '光A' : '光B';
+    const hx = X.k / X.N, hy = Y.k / Y.N;
+    const d = hy - hx;
+    const se = Math.sqrt(hx * (1 - hx) / X.N + hy * (1 - hy) / Y.N);
+    out.d = d; out.se = se;
+    if (d > 2 * se && d >= 0.01){
+      out.cls = 'yes';
+      out.main = '散乱されやすい光（' + nameX + '）のほうが、観測者側に出た割合が ' + Math.abs(d).toFixed(2) + ' 小さい。散乱されると向きが変わるので、反対側に出る光子がふえる。';
+    } else {
+      out.main = '差が小さく、偶然のゆれと区別しにくい。回数をふやしてみよう。';
+    }
+  }
+  if (L >= 9 && vA >= 10 && vB >= 10) out.subs.push('雲を厚くするほど、どちらの光も観測者側と反対側に半分ずつに近づいていく（一直線のすごろくならではの性質）。');
+  if (vA === 30 || vB === 30) out.subs.push('散乱の起こりやすさが50%だと、真ん中から出発すれば、雲の厚さによらず（計算上は）半分ずつになる。');
+  return out;
+}
+if (typeof module !== 'undefined') module.exports = {SCATTER_FACES, EXAMPLE_CLASS, EXAMPLE_TRIALS, MILESTONES, GUIDE1, mulberry32, setSeed, rollDie, trial, trial2, theoryP, fmtRatio, newLight, commitTrial, newPair, commit2, judge2, getRand: () => rand};
+</script>
+
+<script>
+/* ============================================================
+   共通ユーティリティ
+============================================================ */
+const $ = id => document.getElementById(id);
+const COL = {A:'#e0863a', B:'#2b7de9', C:'#3a9a5f'};
+const RED = '#c0473a', OBS = '#17738a', BACK = '#8a8a8a', PHOTON = '#f2c230', PHOTON_D = '#b8860b';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmtInt = n => n.toLocaleString('ja-JP');
+function fmtCount(n){ // 目盛り用
+  if (n >= 10000 && n % 1000 === 0) return (n / 10000) + '万';
+  return String(n);
+}
+function labelTarget(n){ return n >= 10000 && n % 10000 === 0 ? (n / 10000) + '万' : String(n); }
+function prep(cv, h){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = cv.clientWidth || 600;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(h * dpr)){
+    cv.width = Math.round(W * dpr); cv.height = Math.round(h * dpr);
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, h);
+  return {ctx, W, H: h};
+}
+function rrect(ctx, x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+const FONT = '"Hiragino Sans","Hiragino Kaku Gothic ProN",Meiryo,sans-serif';
+function nextFrame(){ return new Promise(res => { let done = false; const f = () => { if (!done){ done = true; res(); } }; requestAnimationFrame(f); setTimeout(f, 60); }); }
+
+// URL パラメータ
+const Q = new URLSearchParams(location.search);
+if (Q.has('seed') && /^-?\d+$/.test(Q.get('seed'))){
+  setSeed(parseInt(Q.get('seed'), 10));
+  $('seedtag').innerHTML = '　<span class="seedtag">seed=' + parseInt(Q.get('seed'), 10) + '（乱数を固定中）</span>';
+}
+
+/* ============================================================
+   タブ切り替え
+============================================================ */
+function setTab(t){
+  if (t === 2 || t === '2') t = 'compare';
+  if (t === 1 || t === '1') t = 'play';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + t));
+  drawAll();
+}
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
+
+/* ============================================================
+   TAB 1 : 光子すごろく
+============================================================ */
+const S1 = {A:newLight(), B:newLight(), C:newLight()};
+let light = 'A';
+let axisLog = false;
+let busy = false, bulkBusy = false, skip = false, running = Promise.resolve();
+let anim = null;               // アニメーション中の表示状態
+let evt = [];                  // メッセージの1行目・2行目（出来事）
+const pendingWaits = new Set();
+
+function wait(ms){
+  if (skip || ms <= 0) return Promise.resolve();
+  return new Promise(res => { const o = {res}; o.t = setTimeout(() => { pendingWaits.delete(o); res(); }, ms); pendingWaits.add(o); });
+}
+function flushWaits(){ pendingWaits.forEach(o => { clearTimeout(o.t); o.res(); }); pendingWaits.clear(); }
+
+// 操作を1つずつ順番に実行する（アニメーション中に別の操作をしたら、いまのアニメーションを一瞬で終わらせてから）
+function act(fn){
+  const prev = running;
+  if (busy){ skip = true; flushWaits(); }
+  running = prev.then(async () => {
+    skip = false; busy = true; startLoop();
+    try { await fn(); } finally { busy = false; anim = null; skip = false; renderAll1(); }
+  });
+  return running;
+}
+
+let loopOn = false;
+function startLoop(){
+  if (loopOn) return; loopOn = true;
+  const tick = () => {
+    drawBoard();
+    if (busy || (anim && anim.flashUntil > performance.now())) requestAnimationFrame(tick);
+    else { loopOn = false; drawBoard(); }
+  };
+  requestAnimationFrame(tick);
+}
+
+function speedMs(){ return +$('speed').value; }
+
+// 1手だけ進める（アニメーションつき）。st.cur がある前提
+async function stepAnimated(st, lk, spd){
+  const c = st.cur;
+  const r = rollDie();
+  const sc = SCATTER_FACES[lk].includes(r);
+  const from = c.x, dirBefore = c.d;
+  if (sc){ c.d = -c.d; c.sc++; }
+  c.x = from + c.d; c.path.push(c.x); c.rolls++; c.lastDie = r; c.lastSc = sc;
+  const done = !(1 <= c.x && c.x <= 3);
+  // 表示：出た目
+  anim = {lk, path: c.path.slice(0, -1), next: c.x, moving: false, moveStart: 0, moveDur: spd,
+          dir: dirBefore, die: r, dieSc: sc, flashUntil: 0, result: null};
+  await wait(spd * 0.6);
+  // 散乱したか → 向き
+  if (sc){
+    const fl = spd >= 300 ? 300 : 120;
+    anim.dir = c.d; anim.flashUntil = performance.now() + fl;
+    await wait(fl);
+  }
+  // 1マス進む
+  anim.moving = true; anim.moveStart = performance.now();
+  await wait(spd);
+  anim.moving = false; anim.path = c.path.slice();
+  let res = null;
+  if (done){
+    res = {obs: c.x === 4, rolls: c.rolls, sc: c.sc, path: c.path, dir: c.d, lastDie: r, lastSc: sc};
+    commitTrial(st, res); st.last = res; st.cur = null;
+    anim.result = res.obs ? 'obs' : 'back';
+  }
+  return {r, sc, done, res};
+}
+function stepMsg(r, sc){
+  return sc ? '出た目：' + r + ' → 散乱！ 向きが反対になって、1マス進んだ。' : '出た目：' + r + ' → そのまま1マス進んだ。';
+}
+function trialEndMsg(res){
+  return res.obs ? '観測者側に出た！（' + res.rolls + '手・散乱' + res.sc + '回）' : '反対側に出た。（' + res.rolls + '手・散乱' + res.sc + '回）';
+}
+function newCur(){ return {x:2, d:+1, rolls:0, sc:0, path:[2], lastDie:null, lastSc:false}; }
+
+// 🎲 1手ずつ
+function doStep(){
+  return act(async () => {
+    const lk = light, st = S1[lk], spd = speedMs();
+    if (!st.cur){
+      st.cur = newCur();
+      anim = {lk, path:[2], next:2, moving:false, dir:+1, die:null, dieSc:false, flashUntil:0, result:null};
+      await wait(Math.min(250, spd * 0.5));
+    }
+    const o = await stepAnimated(st, lk, spd);
+    evt = [{t: stepMsg(o.r, o.sc), c: o.sc ? RED : 'var(--ink)'}];
+    if (o.done) evt.push({t: trialEndMsg(o.res), c: o.res.obs ? OBS : BACK});
+    renderAll1(true);
+  });
+}
+// ▶ 1回ふやす／10回ふやす
+function doTrials(n, spdFixed){
+  return act(async () => {
+    const lk = light, st = S1[lk];
+    for (let i = 0; i < n; i++){
+      const spd = spdFixed || speedMs();
+      if (!st.cur){
+        st.cur = newCur();
+        anim = {lk, path:[2], next:2, moving:false, dir:+1, die:null, dieSc:false, flashUntil:0, result:null};
+        renderAll1(true);
+        await wait(Math.min(200, spd));
+      }
+      let o;
+      do { o = await stepAnimated(st, lk, spd); evt = [{t: stepMsg(o.r, o.sc), c: o.sc ? RED : 'var(--ink)'}]; renderAll1(true); } while (!o.done);
+      evt = [{t: trialEndMsg(o.res), c: o.res.obs ? OBS : BACK}];
+      renderAll1(true);
+      if (i < n - 1) await wait(Math.min(400, spd * 1.2));
+    }
+  });
+}
+// 合計N回まで（アニメーションなし）
+function doBulk(target){
+  return act(async () => {
+    const lk = light, st = S1[lk];
+    if (st.N >= target){
+      evt = [{t: 'もう合計' + labelTarget(target) + '回をこえています。リセットしてから押そう。', c: RED}];
+      return;
+    }
+    // 1手ずつの途中の試行があれば、先に最後まで進める
+    if (st.cur){
+      const c = st.cur;
+      while (1 <= c.x && c.x <= 3){
+        const r = rollDie(), sc = SCATTER_FACES[lk].includes(r);
+        if (sc){ c.d = -c.d; c.sc++; }
+        c.x += c.d; c.path.push(c.x); c.rolls++; c.lastDie = r; c.lastSc = sc;
+      }
+      const res = {obs: c.x === 4, rolls: c.rolls, sc: c.sc, path: c.path, dir: c.d, lastDie: c.lastDie, lastSc: c.lastSc};
+      commitTrial(st, res); st.last = res; st.cur = null;
+    }
+    anim = null; evt = [];
+    const start = st.N, total = target - start;
+    bulkBusy = true; setBusyUI1(true);
+    try {
+      while (st.N < target){
+        const chunk = Math.min(5000, target - st.N);
+        let res = null;
+        for (let i = 0; i < chunk; i++){ res = trial(lk); commitTrial(st, res); }
+        st.last = res;
+        if (total > 5000) $('prog1').textContent = '計算中… ' + Math.floor((st.N - start) / total * 100) + '%';
+        if (st.N < target){ renderAll1(); await nextFrame(); }
+      }
+    } finally { bulkBusy = false; setBusyUI1(false); $('prog1').textContent = ''; }
+  });
+}
+function setBusyUI1(on){
+  document.querySelectorAll('#panel-play .act, #lightbtns button').forEach(b => b.disabled = on);
+}
+
+function statusMsg(st){
+  if (st.N === 0) return st.cur ? '' : '🎲 さいころを投げて、光子を動かしてみよう。';
+  if (light === 'C') return '散乱されないので、毎回観測者側に出ます（相対度数はいつも1）。';
+  if (st.N < 50) return 'まだ回数が少ないので、相対度数は大きくゆれます。';
+  if (st.N < 1000) return '回数がふえてきました。折れ線のゆれ方はどうなっているかな？';
+  if (st.N < 10000) return '折れ線のゆれが小さくなって、あるあたりに落ち着いてきました。もっとふやすとどうなるかな？';
+  return '相対度数は ' + fmtRatio(st.k, st.N, 2) + ' のあたりで、ほとんど変わらなくなってきました。';
+}
+
+function renderStats1(){
+  const st = S1[light];
+  $('t-N').textContent = fmtInt(st.N);
+  $('t-k').textContent = fmtInt(st.k);
+  $('t-b').textContent = fmtInt(st.N - st.k);
+  const rf = $('t-rf');
+  rf.textContent = fmtRatio(st.k, st.N, 3);
+  rf.style.color = COL[light];
+  $('t-frac').textContent = st.N ? '（' + fmtInt(st.k) + ' ÷ ' + fmtInt(st.N) + '）' : '';
+  $('t-m').textContent = '散乱されてから観測者側に出た回数　' + fmtInt(st.m) + ' 回（観測者側のうち ' + fmtRatio(st.m, st.k, 3) + '）';
+  // メッセージ（最大2行）
+  const lines = evt.slice(0, 2);
+  const s = statusMsg(st);
+  if (lines.length < 2 && s) lines.push({t: s, c: 'var(--ink)'});
+  $('msg1').innerHTML = lines.map(l => '<span class="l2" style="color:' + l.c + '">' + l.t + '</span>').join('');
+  // 途中の記録
+  MILESTONES.forEach(m => {
+    const td = $('ml-' + m);
+    if (st.miles[m] !== undefined){
+      td.textContent = fmtRatio(st.miles[m], m, 3); td.classList.add('got');
+    } else { td.textContent = '―'; td.classList.remove('got'); }
+  });
+  // 光の比べ表
+  const rows = ['A', 'B', 'C'].filter(k => S1[k].N > 0);
+  $('cmpbox').hidden = rows.length === 0;
+  const nm = {A:'光A', B:'光B', C:'光C'};
+  $('cmptable').innerHTML = rows.map(k => {
+    const s2 = S1[k];
+    const always = (k === 'C' && s2.k === s2.N) ? '・いつも観測者側' : '';
+    return '<tr><td style="color:' + COL[k] + ';font-weight:bold">' + nm[k] + '</td><td>相対度数</td><td class="v">' + fmtRatio(s2.k, s2.N, 2) + '</td><td>（' + (s2.N >= 10000 && s2.N % 10000 === 0 ? (s2.N / 10000) + '万' : fmtInt(s2.N)) + '回' + always + '）</td></tr>';
+  }).join('');
+  document.querySelectorAll('#lightbtns button').forEach(b => b.classList.toggle('active', b.dataset.light === light));
+}
+function renderAll1(){ renderStats1(); drawBoard(); drawChart1(); }
+
+/* --- 盤（雲の中のようす） --- */
+function boardView(){
+  if (anim && anim.lk === light) return anim;
+  const st = S1[light];
+  if (st.cur) return {path: st.cur.path, next: null, moving: false, dir: st.cur.d, die: st.cur.lastDie, dieSc: st.cur.lastSc, flashUntil: 0, result: null};
+  if (st.last) return {path: st.last.path, next: null, moving: false, dir: st.last.dir, die: st.last.lastDie, dieSc: st.last.lastSc, flashUntil: 0, result: st.last.obs ? 'obs' : 'back'};
+  return {path: [2], next: null, moving: false, dir: +1, die: null, dieSc: false, flashUntil: 0, result: null};
+}
+function drawDie(ctx, x, y, s, face, scat){
+  rrect(ctx, x, y, s, s, s * 0.18);
+  ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = scat ? 3 : 1.5; ctx.strokeStyle = scat ? RED : '#9aa7b2'; ctx.stroke();
+  if (!face){
+    ctx.fillStyle = '#b8c2cc'; ctx.font = 'bold ' + (s * 0.5) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', x + s / 2, y + s / 2 + 1); ctx.textBaseline = 'alphabetic'; return;
+  }
+  const P = {1:[[.5,.5]], 2:[[.27,.27],[.73,.73]], 3:[[.27,.27],[.5,.5],[.73,.73]], 4:[[.27,.27],[.73,.27],[.27,.73],[.73,.73]],
+             5:[[.27,.27],[.73,.27],[.5,.5],[.27,.73],[.73,.73]], 6:[[.27,.24],[.73,.24],[.27,.5],[.73,.5],[.27,.76],[.73,.76]]}[face];
+  ctx.fillStyle = '#222';
+  P.forEach(([u, v]) => { ctx.beginPath(); ctx.arc(x + u * s, y + v * s, s * 0.085, 0, 7); ctx.fill(); });
+}
+function drawSatellite(ctx, cx, cy, sz){
+  ctx.save(); ctx.strokeStyle = OBS; ctx.lineWidth = 1.6; ctx.fillStyle = '#fff';
+  const bw = sz * 0.34, bh = sz * 0.42;
+  // 本体
+  ctx.beginPath(); ctx.rect(cx - bw / 2, cy - bh / 2, bw, bh); ctx.fill(); ctx.stroke();
+  // 太陽電池パネル
+  const pw = sz * 0.36, ph = sz * 0.2;
+  [-1, 1].forEach(sg => {
+    const x0 = sg < 0 ? cx - bw / 2 - pw - 3 : cx + bw / 2 + 3;
+    ctx.beginPath(); ctx.moveTo(sg < 0 ? cx - bw / 2 : cx + bw / 2, cy); ctx.lineTo(sg < 0 ? x0 + pw : x0, cy); ctx.stroke();
+    ctx.beginPath(); ctx.rect(x0, cy - ph / 2, pw, ph); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0 + pw / 3, cy - ph / 2); ctx.lineTo(x0 + pw / 3, cy + ph / 2);
+    ctx.moveTo(x0 + 2 * pw / 3, cy - ph / 2); ctx.lineTo(x0 + 2 * pw / 3, cy + ph / 2); ctx.stroke();
+  });
+  // 望遠鏡の筒（雲の方＝左を向く）
+  ctx.beginPath(); ctx.rect(cx - bw / 2 - 1, cy + bh / 2, bw + 2, sz * 0.14); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawPhoton(ctx, x, y, dir, r){
+  const g = ctx.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
+  g.addColorStop(0, 'rgba(242,194,48,0.55)'); g.addColorStop(1, 'rgba(242,194,48,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = PHOTON; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = PHOTON_D; ctx.stroke();
+  // 進む向きの三角
+  const tx = x + dir * (r + 3);
+  ctx.beginPath(); ctx.moveTo(tx + dir * 9, y); ctx.lineTo(tx, y - 6); ctx.lineTo(tx, y + 6); ctx.closePath();
+  ctx.fillStyle = PHOTON_D; ctx.fill();
+}
+function drawBoard(){
+  const cv = $('cvBoard'); if (!cv.offsetParent) return;
+  const {ctx, W, H} = prep(cv, 200);
+  ctx.fillStyle = '#fbfaf7'; ctx.fillRect(0, 0, W, H);
+  const v = boardView();
+  const cw = Math.min(110, (W - 180) / 3);
+  const bx0 = (W - 3 * cw) / 2;
+  const cx = p => bx0 + (p - 0.5) * cw;
+  const top = 80, bh = 72;
+  // 出口（その試行で出た側は色を濃くする）
+  const ew = Math.min(cw * 0.85, 84);
+  ctx.textAlign = 'center';
+  [[0, '反対側', BACK, '#efefef', 'rgba(138,138,138,0.28)', 'back'], [4, '観測者側', OBS, '#e3f1f4', 'rgba(23,115,138,0.25)', 'obs']].forEach(([p, t, c, f, fOn, key]) => {
+    const on = v.result === key;
+    rrect(ctx, cx(p) - ew / 2, top, ew, bh, 8); ctx.fillStyle = on ? fOn : f; ctx.fill();
+    if (!on) ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = c; ctx.lineWidth = on ? 3 : 1.5; ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = c; ctx.font = 'bold 12px ' + FONT; ctx.fillText(t, cx(p), top + bh + 14);
+  });
+  drawSatellite(ctx, cx(4), 44, Math.min(60, cw * 0.75));
+  // 雲の3マス
+  for (let p = 1; p <= 3; p++){
+    const x = bx0 + (p - 1) * cw + 2;
+    const g = ctx.createLinearGradient(x, top, x + cw - 4, top + bh);
+    g.addColorStop(0, '#e9d8f0'); g.addColorStop(1, '#f5d6b8');
+    rrect(ctx, x, top, cw - 4, bh, 10); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#c9b3d6'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#7a6a8a'; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'left';
+    ctx.fillText(String(p), x + 6, top + 15);
+  }
+  ctx.textAlign = 'center';
+  // 経路（1手ごとに少しずつ下にずらす）
+  const nSteps = v.path.length - 1 + (v.next !== null && v.next !== undefined ? 1 : 0);
+  const y0 = top + 20, dy = Math.min(9, (bh - 30) / Math.max(1, nSteps));
+  const pts = v.path.map((p, i) => [cx(p), y0 + i * dy]);
+  let head = pts[pts.length - 1];
+  if (v.moving){
+    const t = clamp((performance.now() - v.moveStart) / v.moveDur, 0, 1);
+    const a = pts[pts.length - 1], b = [cx(v.next), y0 + pts.length * dy];
+    head = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+  const line = pts.concat(v.moving ? [head] : []);
+  if (line.length > 1){
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); line.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+    ctx.strokeStyle = 'rgba(184,134,11,0.55)'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.beginPath(); line.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+    ctx.strokeStyle = PHOTON; ctx.lineWidth = 3; ctx.stroke();
+  }
+  drawPhoton(ctx, head[0], head[1], v.dir, 10);
+  if (v.flashUntil && performance.now() < v.flashUntil){
+    ctx.font = 'bold 34px ' + FONT; ctx.fillStyle = RED; ctx.textBaseline = 'middle';
+    ctx.fillText('✴', head[0], head[1]); ctx.textBaseline = 'alphabetic';
+  }
+  // さいころ（盤の左上）
+  drawDie(ctx, 12, 34, 38, v.die, v.dieSc);
+  if (v.dieSc){ ctx.fillStyle = RED; ctx.font = 'bold 15px ' + FONT; ctx.textAlign = 'left'; ctx.fillText('散乱！', 56, 58); }
+  // 直近20回の記録チップ
+  const st = S1[light];
+  ctx.textAlign = 'left'; ctx.fillStyle = '#5d6d7e'; ctx.font = '11px ' + FONT;
+  const lblW = 62;
+  ctx.fillText('直近20回', 10, H - 11);
+  const chipW = Math.min(22, (W - lblW - 14) / 20 - 3);
+  st.recent.forEach((o, i) => {
+    const x = lblW + i * (chipW + 3), y = H - 26;
+    rrect(ctx, x, y, chipW, 20, 4); ctx.fillStyle = o ? OBS : '#d9d9d9'; ctx.fill();
+    ctx.fillStyle = o ? '#fff' : '#555'; ctx.font = 'bold ' + Math.min(13, chipW * 0.62) + 'px ' + FONT; ctx.textAlign = 'center';
+    ctx.fillText(o ? '○' : '×', x + chipW / 2, y + 15);
+  });
+}
+
+/* --- 折れ線（相対度数の変わり方） --- */
+function niceCeil(n){
+  let e = Math.pow(10, Math.floor(Math.log10(Math.max(1, n))));
+  for (;;){ for (const m of [1, 2, 5]){ if (m * e >= n) return m * e; } e *= 10; }
+}
+function drawChart(cv, H, cfg){
+  const {ctx, W} = prep(cv, H);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  const L = 44, R = 40, B = 36;
+  // 凡例がビューのタイトルと重なるときは、タイトルの下の段に置く
+  let legendY = 16, T = cfg.top || 40;
+  if (cfg.legend){
+    ctx.font = 'bold 11px ' + FONT;
+    const lw = cfg.legend.reduce((a, it) => a + ctx.measureText(it.t).width + 32, 0);
+    const tEl = cv.parentElement.querySelector('.view-title');
+    const tw = tEl ? tEl.offsetLeft + tEl.offsetWidth + 8 : 180;
+    if (W - R - lw < tw){ legendY = 42; T += 16; }
+  }
+  let maxN = cfg.minX || 10;
+  cfg.series.forEach(s => { if (s.N) maxN = Math.max(maxN, s.N); });
+  if (cfg.overlay && cfg.overlay.length) maxN = Math.max(maxN, cfg.overlay[cfg.overlay.length - 1][0]);
+  const log = cfg.log;
+  const xmax = log ? Math.pow(10, Math.max(1, Math.ceil(Math.log10(maxN) - 1e-9))) : niceCeil(maxN);
+  const pw = W - L - R, ph = H - T - B;
+  const X = log ? n => L + Math.log10(Math.max(1, n)) / Math.log10(xmax) * pw : n => L + n / xmax * pw;
+  const Y = v => T + (1 - v) * ph;
+  // 横の補助線
+  ctx.font = '10px ' + FONT; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 10; i++){
+    const y = Y(i / 10);
+    ctx.strokeStyle = i === 5 ? '#b9c4ce' : (i === 0 || i === 10 ? '#cfd8e0' : '#eef1f4'); ctx.lineWidth = i === 5 ? 1.4 : 1;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+    ctx.fillStyle = '#7f8c8d'; ctx.fillText((i / 10).toFixed(1), L - 5, y);
+  }
+  // 縦の目盛り
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const ticks = [];
+  if (log){ for (let t = 1; t <= xmax; t *= 10) ticks.push(t); }
+  else {
+    const m = xmax / Math.pow(10, Math.floor(Math.log10(xmax) + 1e-9));
+    const step = m === 2 ? xmax / 4 : xmax / 5;
+    for (let t = 0; t <= xmax + 1e-9; t += step) ticks.push(Math.round(t));
+  }
+  ticks.forEach(t => {
+    const x = X(t);
+    ctx.strokeStyle = '#eef1f4'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
+    ctx.fillStyle = '#7f8c8d'; ctx.fillText(fmtCount(t), x, T + ph + 4);
+  });
+  if (log){ // 対数の小目盛り
+    ctx.strokeStyle = '#cfd8e0';
+    for (let d = 1; d < xmax; d *= 10) for (let j = 2; j <= 9; j++){ const x = X(d * j); ctx.beginPath(); ctx.moveTo(x, T + ph); ctx.lineTo(x, T + ph - 4); ctx.stroke(); }
+  }
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#5d6d7e'; ctx.font = 'bold 11px ' + FONT;
+  ctx.textAlign = 'right'; ctx.fillText(cfg.xlabel || 'ためした回数（回）', L + pw, H - 3);
+  ctx.save(); ctx.translate(12, T + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillText('相対度数', 0, 0); ctx.restore();
+  // 目安の線
+  (cfg.guides || []).forEach(g => {
+    const y = Y(g.v);
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = g.color; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = g.color; ctx.font = 'bold 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(g.label, L + pw + 4, y + (g.dy || 0)); ctx.textBaseline = 'alphabetic';
+  });
+  // 折れ線
+  ctx.save(); ctx.beginPath(); ctx.rect(L - 1, T - 6, pw + 2, ph + 12); ctx.clip();
+  cfg.series.forEach(s => {
+    if (!s.N) return;
+    const pts = s.pts.slice();
+    if (!pts.length || pts[pts.length - 1][0] !== s.N) pts.push([s.N, s.k / s.N]);
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width; ctx.lineJoin = 'round';
+    ctx.beginPath(); pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    if (s.dot){ const p = pts[pts.length - 1]; ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 4, 0, 7); ctx.fill(); }
+  });
+  if (cfg.overlay && cfg.overlay.length){
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = COL.A; ctx.lineWidth = 2;
+    ctx.beginPath(); cfg.overlay.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]);
+    cfg.overlay.forEach(p => { ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 4, 0, 7); ctx.fillStyle = COL.A; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(); });
+  }
+  ctx.restore();
+  // 凡例
+  if (cfg.legend){
+    ctx.font = 'bold 11px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    let x = L + pw;
+    const items = cfg.legend.slice().reverse();
+    items.forEach(it => {
+      const w = ctx.measureText(it.t).width;
+      x -= w; ctx.fillStyle = it.c; ctx.fillText(it.t, x, legendY);
+      x -= 20;
+      if (!it.dotOnly){
+        ctx.strokeStyle = it.c; ctx.lineWidth = it.w || 2.5; if (it.dash) ctx.setLineDash([5, 3]);
+        ctx.beginPath(); ctx.moveTo(x, legendY); ctx.lineTo(x + 16, legendY); ctx.stroke(); ctx.setLineDash([]);
+      }
+      if (it.dot || it.dotOnly){ ctx.fillStyle = it.c; ctx.beginPath(); ctx.arc(x + 8, legendY, 4, 0, 7); ctx.fill(); }
+      x -= 12;
+    });
+    ctx.textBaseline = 'alphabetic';
+  }
+  return {ctx, X, Y, W, H};
+}
+function drawChart1(){
+  const cv = $('cvChart1'); if (!cv.offsetParent) return;
+  const names = {A:'光A', B:'光B', C:'光C'};
+  const series = [], legend = [];
+  ['A', 'B', 'C'].forEach(k => {
+    const s = S1[k];
+    if (k !== light && s.N === 0) return;
+    series.push({N: s.N, k: s.k, pts: s.pts, color: COL[k], width: k === light ? 2.6 : 1.2, dot: k === light});
+    if (s.N > 0) legend.push({t: names[k], c: COL[k], w: k === light ? 2.6 : 1.2});
+  });
+  // いま選んでいる光を最後（いちばん上）に描く
+  series.sort((a, b) => a.width - b.width);
+  const guides = [];
+  if ($('guide1').checked){
+    ['A', 'B', 'C'].forEach(k => { if (k === light || S1[k].N > 0) guides.push({v: GUIDE1[k], color: COL[k], label: String(GUIDE1[k]), dy: k === 'C' ? 6 : 0}); });
+  }
+  if (classShown && classData.pairs.length && !legend.some(l => l.dash)) legend.push({t: 'クラス（合わせた相対度数）', c: COL.A, w: 2, dash: true});
+  drawChart(cv, 260, {log: axisLog, series, guides, legend: legend.length > 1 || classShown ? legend : null,
+    overlay: classShown ? classData.cum.map(c => [c.n, c.v]) : null, minX: 10});
+}
+
+/* --- 操作 --- */
+$('b-step').addEventListener('click', () => doStep());
+$('b-one').addEventListener('click', () => doTrials(1));
+$('b-ten').addEventListener('click', () => doTrials(10, 80));
+document.querySelectorAll('#panel-play .bulk').forEach(b => b.addEventListener('click', () => doBulk(+b.dataset.n)));
+function selectLight(k){
+  return act(async () => { light = k; evt = []; });
+}
+document.querySelectorAll('#lightbtns button').forEach(b => b.addEventListener('click', () => selectLight(b.dataset.light)));
+$('b-reset1').addEventListener('click', () => act(async () => { S1[light] = newLight(); evt = []; }));
+$('b-resetall').addEventListener('click', () => act(async () => { S1.A = newLight(); S1.B = newLight(); S1.C = newLight(); evt = []; }));
+function setAxis(lg){
+  axisLog = lg; $('ax-lin').classList.toggle('on', !lg); $('ax-log').classList.toggle('on', lg); drawChart1();
+}
+$('ax-lin').addEventListener('click', () => setAxis(false));
+$('ax-log').addEventListener('click', () => setAxis(true));
+$('guide1').addEventListener('change', drawChart1);
+
+/* ============================================================
+   クラスの結果（先生用）
+============================================================ */
+let classShown = false;
+let classData = {pairs: [], cum: [], K: 0, M: 0};
+let classIsExample = false;
+function buildPairRows(n){
+  n = clamp(Math.round(+n || 1), 1, 20);
+  const box = $('pairs');
+  const old = [...box.querySelectorAll('.pairrow')].map(r => [r.querySelector('.o').value, r.querySelector('.t').value]);
+  let html = '';
+  for (let i = 0; i < n; i++){
+    const o = old[i] ? old[i][0] : '', t = old[i] ? old[i][1] : '20';
+    html += '<div class="pairrow"><span class="pk">ペア ' + (i + 1) + '：</span>観測者側 <input class="o" type="number" min="0" max="100" value="' + o + '"> 回 ／ ためした <input class="t" type="number" min="1" max="100" value="' + t + '"> 回</div>';
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => { classIsExample = false; }));
+}
+function readClass(){
+  const rows = [...$('pairs').querySelectorAll('.pairrow')];
+  const pairs = []; let err = '';
+  rows.forEach((r, i) => {
+    const io = r.querySelector('.o'), it = r.querySelector('.t');
+    io.classList.remove('bad'); it.classList.remove('bad');
+    if (io.value.trim() === '') return;           // 入っていないペアは使わない
+    const o = +io.value, t = +it.value;
+    if (!Number.isInteger(t) || t < 1){ it.classList.add('bad'); if (!err) err = 'ペア ' + (i + 1) + ' のためした回数を 1 以上の整数にしてください。'; return; }
+    if (!Number.isInteger(o) || o < 0 || o > t){ io.classList.add('bad'); if (!err) err = 'ペア ' + (i + 1) + ' の観測者側の回数は、0 からためした回数（' + t + '）までの整数にしてください。'; return; }
+    pairs.push({i: i + 1, o, t, v: o / t});
+  });
+  let K = 0, M = 0; const cum = [];
+  pairs.forEach(p => { K += p.o; M += p.t; cum.push({n: M, v: K / M, i: p.i, pv: p.v}); });
+  return {pairs, cum, K, M, err};
+}
+function showClass(){
+  const d = readClass();
+  classData = d; classShown = d.pairs.length > 0;
+  $('classerr').textContent = d.err;
+  $('classsum').innerHTML = d.M ? 'クラス合計：観測者側 <b>' + d.K + '</b> 回 ÷ <b>' + d.M + '</b> 回 ＝ <b>' + fmtRatio(d.K, d.M, 3) + '</b>' + (classIsExample ? '　<span class="small">（例のクラス・架空）</span>' : '')
+                                : 'クラス合計：観測者側 ― 回 ÷ ― 回 ＝ ―';
+  drawClass(); drawChart1();
+}
+function drawClass(){
+  const cv1 = $('cvClassDots'), cv2 = $('cvClassCum');
+  if (!cv1.offsetParent) return;
+  // 上：0〜1 の数直線にペアごとの相対度数を積み上げ
+  {
+    const {ctx, W, H} = prep(cv1, 210);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    const L = 22, R = 22, y0 = H - 42, X = v => L + v * (W - L - R);
+    ctx.strokeStyle = '#34495e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(0), y0); ctx.lineTo(X(1), y0); ctx.stroke();
+    ctx.font = '11px ' + FONT; ctx.textAlign = 'center'; ctx.fillStyle = '#5d6d7e';
+    for (let i = 0; i <= 20; i++){
+      const x = X(i / 20), big = i % 2 === 0;
+      ctx.lineWidth = big ? 1.6 : 1; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y0 + (big ? 7 : 4)); ctx.stroke();
+      if (big) ctx.fillText((i / 20).toFixed(1), x, y0 + 19);
+    }
+    ctx.textAlign = 'right'; ctx.font = 'bold 10px ' + FONT; ctx.fillText('ペアごとの相対度数（観測者側に出た回数÷ためした回数）', W - 6, H - 4);
+    const r = Math.max(4, Math.min(7, (W - L - R) / 70));
+    const levels = [];
+    classData.pairs.slice().sort((a, b) => a.v - b.v).forEach(p => {
+      const x = X(p.v); let lv = 0;
+      while ((levels[lv] || []).some(px => Math.abs(px - x) < 2 * r + 1)) lv++;
+      (levels[lv] = levels[lv] || []).push(x);
+      const y = y0 - r - 2 - lv * (2 * r + 1);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = COL.A; ctx.fill();
+    });
+  }
+  // 下：合わせた相対度数（横軸はためした回数の累積和）
+  const g = drawChart(cv2, 210, {log: false, series: [], minX: classData.M || 20, xlabel: '合わせた回数（回）', overlay: null,
+    legend: [{t: 'そのペアだけ', c: '#b0b0b0', dotOnly: true}, {t: '合わせた相対度数', c: COL.A, w: 2.5, dot: true}]});
+  if (!classData.cum.length) return;
+  const ctx = g.ctx, X = g.X, Y = g.Y;
+  classData.cum.forEach(c => { ctx.beginPath(); ctx.arc(X(c.n), Y(c.pv), 4, 0, 7); ctx.fillStyle = '#b0b0b0'; ctx.fill(); });
+  ctx.strokeStyle = COL.A; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  ctx.beginPath(); classData.cum.forEach((c, i) => i ? ctx.lineTo(X(c.n), Y(c.v)) : ctx.moveTo(X(c.n), Y(c.v))); ctx.stroke();
+  classData.cum.forEach(c => { ctx.beginPath(); ctx.arc(X(c.n), Y(c.v), 4.5, 0, 7); ctx.fillStyle = COL.A; ctx.fill(); });
+}
+$('npairs').addEventListener('change', () => buildPairRows($('npairs').value));
+$('b-class-show').addEventListener('click', showClass);
+function loadExampleClass(){
+  $('npairs').value = EXAMPLE_CLASS.length; buildPairRows(EXAMPLE_CLASS.length);
+  const rows = $('pairs').querySelectorAll('.pairrow');
+  EXAMPLE_CLASS.forEach((o, i) => { rows[i].querySelector('.o').value = o; rows[i].querySelector('.t').value = EXAMPLE_TRIALS; });
+  classIsExample = true;
+  $('classbox').open = true;
+  showClass();
+}
+$('b-class-ex').addEventListener('click', loadExampleClass);
+$('b-class-clear').addEventListener('click', () => {
+  $('pairs').querySelectorAll('.pairrow').forEach(r => { r.querySelector('.o').value = ''; r.querySelector('.t').value = '20'; });
+  classIsExample = false; classShown = false; classData = {pairs: [], cum: [], K: 0, M: 0};
+  $('classerr').textContent = ''; showClass();
+});
+$('classbox').addEventListener('toggle', () => drawClass());
+buildPairRows(16);
+
+/* ============================================================
+   TAB 2 : 散乱されやすさを変える
+============================================================ */
+const T2 = {L: 3, vA: 20, vB: 10, A: newPair(), B: newPair()};
+let busy2 = false;
+function pctText(v){ return Math.round(v / 60 * 100) + '%'; }
+function faceText(v){
+  return {0: '（散乱なし）', 10: '（さいころの 6 だけ と同じ）', 20: '（さいころの 5・6 と同じ）', 30: '（さいころの 4・5・6 と同じ）'}[v]
+      || '（1手ごとに約' + Math.round(v / 60 * 100) + '%）';
+}
+function readSliders2(){
+  T2.L = +$('s-L').value; T2.vA = +$('s-A').value; T2.vB = +$('s-B').value;
+  $('v-L').textContent = T2.L + ' マス';
+  $('v-A').textContent = pctText(T2.vA); $('sub-A').textContent = faceText(T2.vA);
+  $('v-B').textContent = pctText(T2.vB); $('sub-B').textContent = faceText(T2.vB);
+  document.querySelectorAll('.quick').forEach(q => {
+    const v = q.dataset.for === 'A' ? T2.vA : T2.vB;
+    q.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+  });
+}
+function reset2(){ T2.A = newPair(); T2.B = newPair(); $('msg2') && ($('msg2').textContent = ''); }
+function onSetting2(){
+  if (busy2) return;
+  readSliders2(); reset2(); $('prog2').textContent = ''; renderAll2();
+}
+['s-L', 's-A', 's-B'].forEach(id => $(id).addEventListener('input', onSetting2));
+document.querySelectorAll('.quick').forEach(q => q.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  if (busy2) return;
+  $(q.dataset.for === 'A' ? 's-A' : 's-B').value = b.dataset.v; onSetting2();
+})));
+$('b-reset2').addEventListener('click', () => { if (!busy2){ reset2(); $('prog2').textContent = ''; renderAll2(); } });
+$('guide2').addEventListener('change', renderAll2);
+function setBusyUI2(on){
+  busy2 = on;
+  document.querySelectorAll('#panel-compare .act, #panel-compare input[type=range], #panel-compare .quick button').forEach(b => b.disabled = on);
+}
+async function runCompare(target){
+  if (busy2) return;
+  if (T2.A.N >= target){
+    $('prog2').textContent = 'もう合計' + labelTarget(target) + '回をこえています。リセットしてから押そう。';
+    return;
+  }
+  $('prog2').textContent = '';
+  setBusyUI2(true);
+  const pA = T2.vA / 60, pB = T2.vB / 60, L = T2.L, start = T2.A.N, total = target - start;
+  try {
+    while (T2.A.N < target){
+      const chunk = Math.min(5000, target - T2.A.N);
+      for (let i = 0; i < chunk; i++){ commit2(T2.A, trial2(L, pA)); commit2(T2.B, trial2(L, pB)); }
+      if (total > 5000) $('prog2').textContent = '計算中… ' + Math.floor((T2.A.N - start) / total * 100) + '%';
+      if (T2.A.N < target){ renderAll2(); await nextFrame(); }
+    }
+  } finally { setBusyUI2(false); $('prog2').textContent = ''; renderAll2(); }
+}
+document.querySelectorAll('#panel-compare .bulk2').forEach(b => b.addEventListener('click', () => runCompare(+b.dataset.n)));
+
+function renderAll2(){
+  const A = T2.A, B = T2.B, guide = $('guide2').checked;
+  const PA = theoryP(T2.L, T2.vA / 60), PB = theoryP(T2.L, T2.vB / 60);
+  [['A', A, PA], ['B', B, PB]].forEach(([k, s, P]) => {
+    $('bar-' + k).style.width = s.N ? (s.k / s.N * 100) + '%' : '0';
+    $('bv-' + k).textContent = fmtRatio(s.k, s.N, 3);
+    const g = $('g-' + k);
+    g.style.display = guide ? 'block' : 'none';
+    g.style.left = (P * 100) + '%';
+    g.querySelector('span').textContent = P.toFixed(3);
+  });
+  const diff = A.N ? Math.abs(A.k / A.N - B.k / B.N).toFixed(3) : '―';
+  $('bartext').innerHTML = '光A：' + (A.N ? fmtInt(A.k) + '/' + fmtInt(A.N) + ' ＝ <b>' + fmtRatio(A.k, A.N, 3) + '</b>' : '―')
+    + '　光B：' + (B.N ? fmtInt(B.k) + '/' + fmtInt(B.N) + ' ＝ <b>' + fmtRatio(B.k, B.N, 3) + '</b>' : '―')
+    + '　差：<b>' + diff + '</b>'
+    + (guide ? '<br><span class="small">目安（式 P＝(1＋(s−2)p)／(1＋(L−1)p)、s＝(L＋1)／2）：光A ' + PA.toFixed(3) + '　光B ' + PB.toFixed(3) + '</span>' : '');
+  const j = judge2(T2.L, T2.vA, T2.vB, A, B);
+  $('verdict2').className = 'verdict ' + j.cls;
+  $('verdict-main').textContent = j.main;
+  $('verdict-sub').innerHTML = j.subs.map(s => '<br>' + s).join('');
+  drawBoard2(); drawChart2();
+}
+function drawBoard2(){
+  const cv = $('cvBoard2'); if (!cv.offsetParent) return;
+  const {ctx, W, H} = prep(cv, 130);
+  ctx.fillStyle = '#fbfaf7'; ctx.fillRect(0, 0, W, H);
+  const L = T2.L;
+  const ew = Math.min(80, W * 0.17);
+  const cw = Math.min(90, (W - 2 * ew - 16) / L);
+  const bx0 = (W - L * cw) / 2, top = 40, bh = 56;
+  // 出口
+  const exits = [[bx0 - ew - 4, '反対側', BACK, '#efefef'], [bx0 + L * cw + 4, '観測者側', OBS, '#e3f1f4']];
+  exits.forEach(([x, t, c, f]) => {
+    rrect(ctx, x, top, ew, bh, 8); ctx.fillStyle = f; ctx.fill();
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = c; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'center'; ctx.fillText(t, x + ew / 2, top + bh + 16);
+  });
+  for (let p = 1; p <= L; p++){
+    const x = bx0 + (p - 1) * cw + 1;
+    const g = ctx.createLinearGradient(bx0, top, bx0 + L * cw, top + bh);
+    g.addColorStop(0, '#e9d8f0'); g.addColorStop(1, '#f5d6b8');
+    rrect(ctx, x, top, cw - 2, bh, Math.min(8, cw / 4)); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = '#c9b3d6'; ctx.lineWidth = 1.2; ctx.stroke();
+    if (cw >= 22){ ctx.fillStyle = '#7a6a8a'; ctx.font = 'bold ' + (cw >= 40 ? 11 : 9) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.fillText(String(p), x + (cw - 2) / 2, top + 13); }
+  }
+  const s = (L + 1) / 2;
+  drawPhoton(ctx, bx0 + (s - 0.5) * cw - 5, top + bh / 2 + 6, +1, Math.min(10, Math.max(5, cw * 0.28)));
+}
+function drawChart2(){
+  const cv = $('cvChart2'); if (!cv.offsetParent) return;
+  const guides = [];
+  if ($('guide2').checked){
+    const PA = theoryP(T2.L, T2.vA / 60), PB = theoryP(T2.L, T2.vB / 60);
+    const close = Math.abs(PA - PB) < 0.05;
+    guides.push({v: PA, color: COL.A, label: PA.toFixed(3), dy: close ? (PA >= PB ? -6 : 6) : 0});
+    guides.push({v: PB, color: COL.B, label: PB.toFixed(3), dy: close ? (PB > PA ? -6 : 6) : 0});
+  }
+  drawChart(cv, 220, {log: true, minX: 10, guides,
+    series: [{N: T2.A.N, k: T2.A.k, pts: T2.A.pts, color: COL.A, width: 2.2, dot: true}, {N: T2.B.N, k: T2.B.k, pts: T2.B.pts, color: COL.B, width: 2.2, dot: true}],
+    legend: [{t: '光A', c: COL.A}, {t: '光B', c: COL.B}]});
+}
+
+/* ============================================================
+   起動・画面撮影用 API
+============================================================ */
+function drawAll(){ renderAll1(); drawClass(); renderAll2(); }
+window.addEventListener('resize', drawAll);
+
+window.simAPI = {
+  // いま選んでいる光の合計が n 回になるまで追加（ボタンと同じ）
+  run(n){ return doBulk(n); },
+  setLight(k){ return selectLight(k); },
+  setTab(i){ setTab(i); },
+  loadExampleClass(){ loadExampleClass(); },
+  // タブ②で2つの光の合計がそれぞれ n 回になるまで追加
+  runCompare(n){ return runCompare(n); },
+  // 以下は確認用
+  step(){ return doStep(); },
+  trials(n){ return doTrials(n, 80); },
+  setAxisLog(b){ setAxis(!!b); },
+  setGuide(b){ $('guide1').checked = !!b; $('guide2').checked = !!b; drawAll(); },
+  setCompare(L, vA, vB){ $('s-L').value = L; $('s-A').value = vA; $('s-B').value = vB; onSetting2(); },
+  state(){ return {light, S1: JSON.parse(JSON.stringify({A: S1.A, B: S1.B, C: S1.C}, (k, v) => k === 'pts' ? v.length : v)),
+                   T2: {L: T2.L, vA: T2.vA, vB: T2.vB, A: {N: T2.A.N, k: T2.A.k}, B: {N: T2.B.N, k: T2.B.k}},
+                   msg1: $('msg1').innerText, miles: MILESTONES.map(m => $('ml-' + m).textContent),
+                   verdict: $('verdict2').innerText, bartext: $('bartext').innerText, classsum: $('classsum').innerText}; }
+};
+
+readSliders2();
+if (Q.get('tab') === '2') setTab('compare'); else drawAll();
+</script>
+</body>
+</html>
